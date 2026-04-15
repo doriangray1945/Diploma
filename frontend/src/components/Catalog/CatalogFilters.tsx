@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SlidersHorizontal, X } from 'lucide-react';
 import { useProductsStore } from '../../stores';
 import clsx from 'clsx';
@@ -6,6 +6,19 @@ import clsx from 'clsx';
 export default function CatalogFilters() {
   const [showFilters, setShowFilters] = useState(false);
   const { filters, setFilters, clearFilters, categories } = useProductsStore();
+  const prevFiltersRef = useRef(filters);
+
+  // Auto-open filter panel when chat sets category/price filters
+  useEffect(() => {
+    const prev = prevFiltersRef.current;
+    const hasNewFilters = filters.category !== prev.category
+      || filters.min_price !== prev.min_price
+      || filters.max_price !== prev.max_price;
+    if (hasNewFilters) {
+      setShowFilters(true);
+    }
+    prevFiltersRef.current = filters;
+  }, [filters]);
 
   const tabs = [
     { key: 'popular', label: 'Популярное', filter: { is_popular: true } },
@@ -16,13 +29,11 @@ export default function CatalogFilters() {
 
   const handleTabClick = (tab: typeof tabs[0]) => {
     if (activeTab === tab.key) {
-      // Clear the tab filter
       const newFilters = { ...filters };
       delete newFilters.is_popular;
       delete newFilters.is_new;
       setFilters(newFilters);
     } else {
-      // Set the tab filter
       const newFilters = { ...filters };
       delete newFilters.is_popular;
       delete newFilters.is_new;
@@ -44,7 +55,7 @@ export default function CatalogFilters() {
 
   return (
     <div className="mb-6">
-      {/* Tabs */}
+      {/* Tabs + filter toggle */}
       <div className="flex items-center justify-center gap-2 mb-4">
         {tabs.map((tab) => (
           <button
@@ -64,13 +75,16 @@ export default function CatalogFilters() {
           onClick={() => setShowFilters(!showFilters)}
           className={clsx(
             'px-6 py-2.5 rounded-full text-sm font-medium transition-colors flex items-center gap-2',
-            showFilters
+            showFilters || hasActiveFilters
               ? 'bg-slate-900 text-white'
               : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
           )}
         >
           <SlidersHorizontal className="w-4 h-4" />
           Фильтры
+          {hasActiveFilters && !showFilters && (
+            <span className="w-2 h-2 bg-primary-400 rounded-full" />
+          )}
         </button>
 
         {hasActiveFilters && (

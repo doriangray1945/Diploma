@@ -1,6 +1,8 @@
 import asyncio
+import httpx
 from sqlalchemy import select
-from app.core.database import async_session_maker, engine, Base
+from app.core.database import async_session_maker, engine, Base, init_pgvector
+from app.core.config import settings
 from app.models import Product
 
 FURNITURE_DATA = [
@@ -327,8 +329,35 @@ FURNITURE_DATA = [
 ]
 
 
+async def generate_embedding(text: str) -> list[float] | None:
+    """Generate embedding via Ollama."""
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{settings.OLLAMA_HOST}/api/embeddings",
+                json={"model": "nomic-embed-text", "prompt": text},
+            )
+            response.raise_for_status()
+            return response.json()["embedding"]
+    except Exception as e:
+        print(f"  Warning: could not generate embedding: {e}")
+        return None
+
+
+def build_product_text(data: dict) -> str:
+    """Build a searchable text representation of a product for embedding."""
+    parts = [data["name"], data.get("description", ""), data.get("category", "")]
+    if data.get("color"):
+        parts.append(f"цвет: {data['color']}")
+    if data.get("materials"):
+        parts.append(f"материалы: {data['materials']}")
+    return " ".join(parts)
+
+
 async def seed_database():
     """Seed the database with initial furniture data."""
+    await init_pgvector()
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -339,10 +368,17 @@ async def seed_database():
             print("Database already has products. Skipping seed.")
             return
 
-        # Add products
-        for product_data in FURNITURE_DATA:
-            product = Product(**product_data)
+        # Add products with embeddings
+        for i, product_data in enumerate(FURNITURE_DATA):
+            text = build_product_text(product_data)
+            print(f"  [{i+1}/{len(FURNITURE_DATA)}] {product_data['name']}...", end=" ")
+
+            embedding = await generate_embedding(text)
+            product = Product(**product_data, embedding=embedding)
             session.add(product)
+
+            status = "with embedding" if embedding else "without embedding"
+            print(status)
 
         await session.commit()
         print(f"Successfully seeded {len(FURNITURE_DATA)} products!")

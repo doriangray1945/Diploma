@@ -1,8 +1,6 @@
-import json
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -10,7 +8,7 @@ from app.core.database import get_db
 from app.models import ChatMessage, User
 from app.schemas import ChatMessageCreate, ChatMessageResponse, ChatResponse, ChatHistoryResponse
 from app.api.deps import get_current_user
-from app.services import ollama_service, TOOLS, execute_tool
+from app.adapters.core_adapter import process_message
 
 router = APIRouter()
 
@@ -19,13 +17,13 @@ router = APIRouter()
 async def send_message(
     message_data: ChatMessageCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)]
+    current_user: Annotated[User, Depends(get_current_user)],
 ):
     # Save user message
     user_message = ChatMessage(
         user_id=current_user.id,
         role="user",
-        content=message_data.content
+        content=message_data.content,
     )
     db.add(user_message)
     await db.commit()
@@ -36,112 +34,83 @@ async def send_message(
         select(ChatMessage)
         .where(ChatMessage.user_id == current_user.id)
         .order_by(ChatMessage.created_at.desc())
-        .limit(20)
+        .limit(10)
     )
-    history = list(reversed(history_result.scalars().all()))
+    history = []
+    for msg in reversed(history_result.scalars().all()):
+        content = msg.content
+        # Truncate long tool results to save context window
+        if msg.role == "tool" and len(content) > 500:
+            content = content[:500] + "..."
+        history.append({"role": msg.role, "content": content})
 
-    # Build messages for Ollama
-    messages = [
-        {"role": msg.role, "content": msg.content}
-        for msg in history
-    ]
+    # Determine user role (check for is_admin field or default to "user")
+    role = "admin" if getattr(current_user, "is_admin", False) else "user"
 
     try:
-        # First call to Ollama with tools
-        response = await ollama_service.chat(messages, tools=TOOLS)
-
-        assistant_content = ""
-        action = None
-
-        if "message" in response:
-            msg = response["message"]
-            assistant_content = msg.get("content", "")
-
-            # Check if tool calls were made
-            if "tool_calls" in msg and msg["tool_calls"]:
-                tool_results = []
-
-                for tool_call in msg["tool_calls"]:
-                    func = tool_call.get("function", {})
-                    tool_name = func.get("name")
-                    arguments = func.get("arguments", {})
-
-                    if isinstance(arguments, str):
-                        arguments = json.loads(arguments)
-
-                    # Execute tool
-                    result = await execute_tool(tool_name, arguments, db, current_user)
-                    tool_results.append(result)
-
-                    # If there's an action, store it
-                    if "action" in result:
-                        action = result
-
-                # Add tool results to messages and get final response
-                messages.append({"role": "assistant", "content": assistant_content, "tool_calls": msg["tool_calls"]})
-
-                for i, tool_call in enumerate(msg["tool_calls"]):
-                    messages.append({
-                        "role": "tool",
-                        "content": json.dumps(tool_results[i], ensure_ascii=False)
-                    })
-
-                # Get final response after tool execution
-                final_response = await ollama_service.chat(messages)
-                if "message" in final_response:
-                    assistant_content = final_response["message"].get("content", assistant_content)
-
-        if not assistant_content:
-            assistant_content = "Извините, произошла ошибка. Попробуйте ещё раз."
-
-        # Save assistant message
-        assistant_message = ChatMessage(
+        # Process through core pipeline
+        result = await process_message(
+            text=message_data.content,
             user_id=current_user.id,
-            role="assistant",
-            content=assistant_content
+            role=role,
+            history=history,
+            db=db,
         )
-        db.add(assistant_message)
-        await db.commit()
-        await db.refresh(assistant_message)
 
-        return ChatResponse(
-            message=ChatMessageResponse(
-                id=assistant_message.id,
-                role=assistant_message.role,
-                content=assistant_message.content,
-                created_at=assistant_message.created_at
-            ),
-            action=action
-        )
+        assistant_content = result.response
+        # Collect all actions from tool results
+        actions = [
+            tr.result for tr in result.tool_results
+            if "action" in tr.result
+        ]
+        action = actions[-1] if actions else result.action
 
     except Exception as e:
-        # Fallback response if Ollama is not available
-        error_content = f"Извините, AI-ассистент временно недоступен. Ошибка: {str(e)}"
+        import traceback
+        traceback.print_exc()
+        assistant_content = f"Извините, AI-ассистент временно недоступен. Ошибка: {repr(e)}"
+        action = None
+        result = None
 
-        assistant_message = ChatMessage(
+    # Save tool results as a "tool" message so LLM sees them in history
+    if result and result.tool_results:
+        import json
+        tool_data = json.dumps(
+            [{"tool": tr.tool_name, "result": tr.result} for tr in result.tool_results],
+            ensure_ascii=False,
+        )
+        tool_message = ChatMessage(
             user_id=current_user.id,
-            role="assistant",
-            content=error_content
+            role="tool",
+            content=tool_data,
         )
-        db.add(assistant_message)
-        await db.commit()
-        await db.refresh(assistant_message)
+        db.add(tool_message)
 
-        return ChatResponse(
-            message=ChatMessageResponse(
-                id=assistant_message.id,
-                role=assistant_message.role,
-                content=assistant_message.content,
-                created_at=assistant_message.created_at
-            ),
-            action=None
-        )
+    # Save assistant message
+    assistant_message = ChatMessage(
+        user_id=current_user.id,
+        role="assistant",
+        content=assistant_content,
+    )
+    db.add(assistant_message)
+    await db.commit()
+    await db.refresh(assistant_message)
+
+    return ChatResponse(
+        message=ChatMessageResponse(
+            id=assistant_message.id,
+            role=assistant_message.role,
+            content=assistant_message.content,
+            created_at=assistant_message.created_at,
+        ),
+        action=action,
+    )
 
 
 @router.get("/history", response_model=ChatHistoryResponse)
 async def get_chat_history(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)]
+    current_user: Annotated[User, Depends(get_current_user)],
 ):
     result = await db.execute(
         select(ChatMessage)
@@ -157,9 +126,10 @@ async def get_chat_history(
                 id=msg.id,
                 role=msg.role,
                 content=msg.content,
-                created_at=msg.created_at
+                created_at=msg.created_at,
             )
             for msg in messages
+            if msg.role != "tool"  # Don't show tool results in UI
         ]
     )
 
@@ -167,7 +137,7 @@ async def get_chat_history(
 @router.delete("/history")
 async def clear_chat_history(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)]
+    current_user: Annotated[User, Depends(get_current_user)],
 ):
     result = await db.execute(
         select(ChatMessage).where(ChatMessage.user_id == current_user.id)
@@ -178,5 +148,4 @@ async def clear_chat_history(
         await db.delete(msg)
 
     await db.commit()
-
     return {"message": "Chat history cleared"}

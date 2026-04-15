@@ -1,9 +1,16 @@
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
 
 engine = create_async_engine(settings.DATABASE_URL, echo=True)
+
+
+async def init_pgvector():
+    """Enable pgvector extension in PostgreSQL."""
+    async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
 async_session_maker = async_sessionmaker(
     engine,

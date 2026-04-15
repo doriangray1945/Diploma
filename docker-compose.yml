@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: furniture-postgres
     environment:
       POSTGRES_DB: furniture_store
@@ -25,12 +25,16 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/furniture_store
       SECRET_KEY: your-super-secret-key-change-in-production-123456
       OLLAMA_HOST: http://host.docker.internal:11434
-      OLLAMA_MODEL: llama3.2
+      OLLAMA_MODEL: qwen2.5:14b
+      PYTHONPATH: /app
     depends_on:
       postgres:
         condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - ./backend:/app
+      - ./core:/app/core
     command: >
       sh -c "
         python seed_data.py &&

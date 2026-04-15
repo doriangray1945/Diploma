@@ -1,6 +1,7 @@
 from datetime import datetime
 from sqlalchemy import String, Text, Integer, Numeric, Boolean, DateTime, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from pgvector.sqlalchemy import Vector
 
 from app.core.database import Base
 
@@ -31,6 +32,8 @@ class Product(Base):
 
     is_popular: Mapped[bool] = mapped_column(Boolean, default=False)
     is_new: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    embedding = mapped_column(Vector(768), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

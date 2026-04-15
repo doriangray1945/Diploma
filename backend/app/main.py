@@ -4,13 +4,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.core.database import engine, Base
+from app.core.database import engine, Base, init_pgvector
 from app.api.routes import api_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: create tables
+    # Startup: enable pgvector and create tables
+    await init_pgvector()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield

@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
-import { useChatStore, useProductsStore, useAuthStore } from '../../stores';
+import { useChatStore, useProductsStore, useAuthStore, useCartStore, useFavoritesStore } from '../../stores';
 import ChatMessage from './ChatMessage';
 import clsx from 'clsx';
 
 export default function Chat() {
   const [input, setInput] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user } = useAuthStore();
   const {
     messages,
@@ -19,10 +18,16 @@ export default function Chat() {
     toggleChat,
   } = useChatStore();
   const { setFilters } = useProductsStore();
+  const { fetchCart } = useCartStore();
+  const { fetchFavorites } = useFavoritesStore();
 
-  // Scroll to bottom when new messages arrive
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  // Scroll chat container to bottom (not the whole page)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
   }, [messages]);
 
   // Handle chat actions
@@ -30,10 +35,22 @@ export default function Chat() {
     if (lastAction) {
       if (lastAction.action === 'apply_filters' && lastAction.filters) {
         setFilters(lastAction.filters);
+        setTimeout(() => {
+          document.getElementById('catalog-grid')?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
+      if (lastAction.action === 'added_to_cart') {
+        fetchCart();
+      }
+      if (lastAction.action === 'added_to_favorites' || lastAction.action === 'removed_from_favorites') {
+        fetchFavorites();
+      }
+      if (lastAction.action === 'order_created') {
+        fetchCart(); // Cart is cleared after order
       }
       clearLastAction();
     }
-  }, [lastAction, setFilters, clearLastAction]);
+  }, [lastAction, setFilters, fetchCart, fetchFavorites, clearLastAction]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,7 +95,7 @@ export default function Chat() {
         )}
       >
         {/* Messages */}
-        <div className="h-[280px] overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-slate-50 to-white">
+        <div ref={chatContainerRef} className="h-[280px] overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-slate-50 to-white">
           {messages.length === 0 ? (
             <div className="flex items-start gap-3">
               <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-violet-500 rounded-full flex items-center justify-center flex-shrink-0">
@@ -111,7 +128,6 @@ export default function Chat() {
             </div>
           )}
 
-          <div ref={messagesEndRef} />
         </div>
 
         {/* Input */}
