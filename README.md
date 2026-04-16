@@ -1,12 +1,12 @@
 # Nova Furnish - Мебельный магазин с AI-ассистентом
 
-Интернет-магазин мебели с интегрированным AI-чатом на базе Ollama (llama3.2), который помогает пользователям подбирать товары, управлять фильтрами каталога и оформлять заказы через естественный диалог.
+Интернет-магазин мебели с интегрированным AI-чатом на базе Ollama (qwen3:8b), который помогает пользователям подбирать товары, управлять фильтрами каталога и оформлять заказы через естественный диалог.
 
 ## Технологический стек
 
 - **Frontend:** React 18 + TypeScript + Vite + Tailwind CSS
-- **Backend:** FastAPI + SQLAlchemy + PostgreSQL
-- **AI:** Ollama + llama3.2
+- **Backend:** FastAPI + SQLAlchemy + PostgreSQL + pgvector
+- **AI:** Ollama + qwen3:8b
 - **State Management:** Zustand
 - **Аутентификация:** JWT tokens
 
@@ -29,7 +29,7 @@ curl -fsSL https://ollama.com/install.sh | sh
 ollama serve
 
 # Загрузка модели
-ollama pull llama3.2
+ollama pull qwen3:8b
 ```
 
 ### Запуск проекта
@@ -89,13 +89,17 @@ npm run dev
 Diploma/
 ├── backend/
 │   ├── app/
+│   │   ├── adapters/       # Связка backend ↔ core (DataProvider impl)
 │   │   ├── api/routes/     # API endpoints
 │   │   ├── core/           # Конфигурация, безопасность, БД
 │   │   ├── models/         # SQLAlchemy модели
-│   │   ├── schemas/        # Pydantic схемы
-│   │   └── services/       # Ollama интеграция
-│   ├── alembic/            # Миграции
+│   │   └── schemas/        # Pydantic схемы
 │   └── seed_data.py        # Начальные данные
+├── core/                   # Универсальное ядро AI-агентов
+│   ├── agents/             # Orchestrator, Planner, Validator, Base
+│   ├── llm/                # Ollama-клиент и LLMProvider Protocol
+│   ├── providers/          # DataProvider Protocol
+│   └── tools/              # Tool-функции для LLM
 ├── frontend/
 │   ├── src/
 │   │   ├── api/            # API клиент
@@ -168,7 +172,7 @@ AI-чат на базе Ollama позволяет:
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/furniture_store
 SECRET_KEY=your-secret-key
 OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=llama3.2
+OLLAMA_MODEL=qwen3:8b
 ```
 
 ## Тестовые данные

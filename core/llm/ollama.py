@@ -37,6 +37,7 @@ class OllamaProvider:
             "model": self.config.chat_model,
             "messages": ollama_messages,
             "stream": False,
+            "think": False,  # disable Qwen3 reasoning block for chat latency
             "options": {
                 "temperature": temperature or self.config.temperature,
                 "num_predict": self.config.max_tokens,
@@ -53,23 +54,3 @@ class OllamaProvider:
             )
             response.raise_for_status()
             return response.json()
-
-    async def embed(self, text: str) -> list[float]:
-        async with httpx.AsyncClient(timeout=self.config.request_timeout) as client:
-            response = await client.post(
-                f"{self.config.ollama_base_url}/api/embeddings",
-                json={
-                    "model": self.config.embedding_model,
-                    "prompt": text,
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-            return data["embedding"]
-
-    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
-        results = []
-        for text in texts:
-            embedding = await self.embed(text)
-            results.append(embedding)
-        return results

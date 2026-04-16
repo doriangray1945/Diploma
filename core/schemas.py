@@ -13,17 +13,6 @@ class Role(str, Enum):
     TOOL = "tool"
 
 
-class Intent(str, Enum):
-    SEARCH = "search"
-    DETAILS = "details"
-    ACTION = "action"
-    QUESTION = "question"
-    COMPLAINT = "complaint"
-    ADMIN_ACTION = "admin_action"
-    COMPLEX_REQUEST = "complex_request"
-    UNKNOWN = "unknown"
-
-
 class Complexity(str, Enum):
     SIMPLE = "simple"
     COMPLEX = "complex"
@@ -33,7 +22,6 @@ class Message(BaseModel):
     role: Role
     content: str
     tool_calls: list[ToolCall] | None = None
-    tool_call_id: str | None = None
 
 
 class ToolCall(BaseModel):
@@ -62,13 +50,11 @@ class ValidationIssue(BaseModel):
 
 class AgentResult(BaseModel):
     response: str
-    intent: Intent = Intent.UNKNOWN
     complexity: Complexity = Complexity.SIMPLE
     tool_results: list[ToolResult] = Field(default_factory=list)
     action: dict[str, Any] | None = None
     plan_steps: list[PlanStep] = Field(default_factory=list)
     validation_issues: list[ValidationIssue] = Field(default_factory=list)
-    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class UserContext(BaseModel):

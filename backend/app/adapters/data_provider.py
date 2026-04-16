@@ -72,19 +72,6 @@ class PostgresDataProvider:
             return None
         return self._product_to_dict(product, detailed=True)
 
-    async def search_similar(
-        self, embedding: list[float], limit: int = 5
-    ) -> list[dict[str, Any]]:
-        result = await self.db.execute(
-            select(Product)
-            .where(Product.embedding.isnot(None))
-            .where(Product.in_stock == True)
-            .order_by(Product.embedding.cosine_distance(embedding))
-            .limit(limit)
-        )
-        products = result.scalars().all()
-        return [self._product_to_dict(p) for p in products]
-
     # ── Cart ─────────────────────────────────────────────────────
 
     async def add_to_cart(

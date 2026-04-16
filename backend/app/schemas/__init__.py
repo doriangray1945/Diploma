@@ -3,15 +3,11 @@ from app.schemas.user import (
     UserLogin,
     UserResponse,
     Token,
-    TokenData
 )
 from app.schemas.product import (
-    ProductCreate,
-    ProductUpdate,
     ProductResponse,
     ProductListResponse,
-    ProductFilters,
-    CategoryResponse
+    CategoryResponse,
 )
 from app.schemas.cart import (
     CartItemCreate,

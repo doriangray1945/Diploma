@@ -16,10 +16,6 @@ class DataProvider(Protocol):
 
     async def get_product(self, product_id: int) -> dict[str, Any] | None: ...
 
-    async def search_similar(
-        self, embedding: list[float], limit: int = 5
-    ) -> list[dict[str, Any]]: ...
-
     # Cart
     async def add_to_cart(
         self, user_id: int, product_id: int, quantity: int = 1
