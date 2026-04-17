@@ -1,6 +1,6 @@
 from typing import Any
 
-from core.tools.base import BaseTool
+from core.tools.base import BaseTool, flatten_ids
 
 
 class GetFavoritesTool(BaseTool):
@@ -22,6 +22,7 @@ class GetFavoritesTool(BaseTool):
 class AddToFavoritesTool(BaseTool):
     name = "add_to_favorites"
     description = "Add one or multiple products to the user's favorites/wishlist"
+    updates_context = {"favorites_summary": "result"}
     parameters = {
         "type": "object",
         "properties": {
@@ -39,9 +40,9 @@ class AddToFavoritesTool(BaseTool):
     }
 
     async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
-        ids = kwargs.get("product_ids") or []
+        ids = flatten_ids(kwargs.get("product_ids"))
         if kwargs.get("product_id"):
-            ids.append(kwargs["product_id"])
+            ids.append(int(kwargs["product_id"]))
 
         if not ids:
             return {"error": "product_id or product_ids is required"}
@@ -83,9 +84,9 @@ class RemoveFromFavoritesTool(BaseTool):
     }
 
     async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
-        ids = kwargs.get("product_ids") or []
+        ids = flatten_ids(kwargs.get("product_ids"))
         if kwargs.get("product_id"):
-            ids.append(kwargs["product_id"])
+            ids.append(int(kwargs["product_id"]))
 
         if not ids:
             return {"error": "product_id or product_ids is required"}
@@ -105,3 +106,18 @@ class RemoveFromFavoritesTool(BaseTool):
             "errors": errors,
             "count": len(results),
         }
+
+
+class ClearFavoritesTool(BaseTool):
+    name = "clear_favorites"
+    description = "Remove ALL items from the user's favorites/wishlist"
+    updates_context = {"favorites_summary": "result"}
+    parameters = {
+        "type": "object",
+        "properties": {},
+        "required": [],
+    }
+
+    async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
+        result = await self.provider.clear_favorites(user_id)
+        return {"action": "favorites_cleared", **result}

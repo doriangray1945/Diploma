@@ -118,9 +118,16 @@ export interface ChatAction {
   message?: string;
 }
 
+export interface UiState {
+  visible_product_ids?: number[];
+  current_filters?: ProductFilters;
+  open_product_id?: number;
+}
+
 export interface ChatResponse {
   message: ChatMessage;
   action?: ChatAction;
+  actions?: ChatAction[];
 }
 
 export interface Token {

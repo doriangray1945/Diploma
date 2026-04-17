@@ -4,6 +4,7 @@ from app.models.cart import CartItem
 from app.models.order import Order, OrderItem
 from app.models.favorite import Favorite
 from app.models.chat import ChatMessage
+from app.models.chat_session import ChatSession
 
 __all__ = [
     "User",
@@ -12,5 +13,6 @@ __all__ = [
     "Order",
     "OrderItem",
     "Favorite",
-    "ChatMessage"
+    "ChatMessage",
+    "ChatSession",
 ]

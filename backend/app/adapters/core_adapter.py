@@ -1,33 +1,26 @@
-from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import CoreConfig
 from core.llm.ollama import OllamaProvider
 from core.pipeline import Pipeline
-from core.schemas import AgentResult, Message, Role, UserContext
+from core.schemas import AgentResult, Message, Role, SessionContext, UserContext
 from core.tools.base import ToolRegistry
 from core.tools.catalog import GetProductDetailsTool, ApplyFiltersTool
-from core.tools.cart import AddToCartTool, GetCartTool
+from core.tools.cart import AddToCartTool, GetCartTool, ClearCartTool
 from core.tools.order import CreateOrderTool, ModifyOrderTool
-from core.tools.favorites import GetFavoritesTool, AddToFavoritesTool, RemoveFromFavoritesTool
+from core.tools.favorites import GetFavoritesTool, AddToFavoritesTool, RemoveFromFavoritesTool, ClearFavoritesTool
 from core.tools.admin import AddProductTool, UpdateProductTool, DeleteProductTool
 
 from app.adapters.data_provider import PostgresDataProvider
 from app.core.config import settings
-from app.models import Product
 
 
-def _build_config(available_filters: str) -> CoreConfig:
+def _build_config() -> CoreConfig:
     return CoreConfig(
         ollama_base_url=settings.OLLAMA_HOST,
         chat_model=settings.OLLAMA_MODEL,
         language="русский",
-        business_prompt=(
-            'Ты — AI-ассистент мебельного магазина "Nova Furnish". '
-            "Помогаешь покупателям подбирать мебель, оформлять заказы "
-            "и отвечаешь на вопросы о товарах.\n\n"
-            f"Доступные фильтры каталога:\n{available_filters}"
-        ),
+        business_prompt='Ассистент мебельного магазина "Nova Furnish".',
     )
 
 
@@ -41,11 +34,13 @@ def _build_tools(
     registry.register(GetProductDetailsTool(provider))
     registry.register(AddToCartTool(provider))
     registry.register(GetCartTool(provider))
+    registry.register(ClearCartTool(provider))
     registry.register(CreateOrderTool(provider))
     registry.register(ModifyOrderTool(provider))
     registry.register(GetFavoritesTool(provider))
     registry.register(AddToFavoritesTool(provider))
     registry.register(RemoveFromFavoritesTool(provider))
+    registry.register(ClearFavoritesTool(provider))
 
     # Admin tools — only for admin role
     if role == "admin":
@@ -61,30 +56,29 @@ async def process_message(
     user_id: int,
     role: str,
     history: list[dict],
+    session_context: SessionContext | None,
     db: AsyncSession,
-) -> AgentResult:
-    """Main entry point: process a user message through the core pipeline."""
-    # Fetch available filter values from DB
-    cat_result = await db.execute(select(Product.category).distinct())
-    categories = sorted([r for r in cat_result.scalars().all() if r])
+) -> tuple[AgentResult, SessionContext]:
+    """Process a user message through the core pipeline.
 
-    price_result = await db.execute(
-        select(func.min(Product.price), func.max(Product.price))
-    )
-    price_row = price_result.one()
-    min_price, max_price = float(price_row[0] or 0), float(price_row[1] or 0)
-
-    available_filters = (
-        f"Категории: {', '.join(categories)}\n"
-        f"Цены: от {min_price:.0f} до {max_price:.0f} руб."
-    )
-
-    config = _build_config(available_filters)
-    llm = OllamaProvider(config)
+    Returns (result, updated_session_context) so the caller can persist
+    the context changes back to the DB.
+    """
     provider = PostgresDataProvider(db)
+
+    # Fetch filter options via cached DataProvider method (avoids raw SQL each time)
+    filter_opts = await provider.get_filter_options()
+    categories = filter_opts["categories"]
+    colors = filter_opts.get("colors", [])
+    price_range = filter_opts.get("price_range", {})
+
+    config = _build_config()
+    llm = OllamaProvider(config)
     tools = _build_tools(provider, role)
 
     pipeline = Pipeline(llm, provider, config)
+
+    session_context = session_context or SessionContext()
 
     user_context = UserContext(
         user_id=user_id,
@@ -95,4 +89,6 @@ async def process_message(
         ],
     )
 
-    return await pipeline.run(text, tools, user_context)
+    result = await pipeline.run(text, tools, user_context, session_context)
+    # session_context is mutated in-place by PlanExecutor.updates_context
+    return result, session_context

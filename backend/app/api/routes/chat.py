@@ -9,8 +9,17 @@ from app.models import ChatMessage, User
 from app.schemas import ChatMessageCreate, ChatMessageResponse, ChatResponse, ChatHistoryResponse
 from app.api.deps import get_current_user
 from app.adapters.core_adapter import process_message
+from app.services.session_service import (
+    get_or_create_session,
+    db_session_to_context,
+    merge_ui_state,
+    apply_context_updates,
+)
 
 router = APIRouter()
+
+# Max user+assistant messages to pass as LLM context (tool role excluded)
+HISTORY_LIMIT = 4
 
 
 @router.post("/message", response_model=ChatResponse)
@@ -29,50 +38,61 @@ async def send_message(
     await db.commit()
     await db.refresh(user_message)
 
-    # Get chat history
+    # Upsert ChatSession + merge frontend UI state + build SessionContext
+    chat_session = await get_or_create_session(current_user.id, db)
+    if message_data.ui_state:
+        merge_ui_state(chat_session, message_data.ui_state.model_dump(exclude_none=True))
+    session_context = db_session_to_context(chat_session)
+
+    # Get chat history: only user+assistant (no tool), last N
     history_result = await db.execute(
         select(ChatMessage)
-        .where(ChatMessage.user_id == current_user.id)
+        .where(
+            ChatMessage.user_id == current_user.id,
+            ChatMessage.role.in_(["user", "assistant"]),
+        )
         .order_by(ChatMessage.created_at.desc())
-        .limit(10)
+        .limit(HISTORY_LIMIT)
     )
-    history = []
-    for msg in reversed(history_result.scalars().all()):
-        content = msg.content
-        # Truncate long tool results to save context window
-        if msg.role == "tool" and len(content) > 500:
-            content = content[:500] + "..."
-        history.append({"role": msg.role, "content": content})
+    history = [
+        {"role": msg.role, "content": msg.content}
+        for msg in reversed(history_result.scalars().all())
+    ]
 
-    # Determine user role (check for is_admin field or default to "user")
+    # Determine user role
     role = "admin" if getattr(current_user, "is_admin", False) else "user"
 
     try:
-        # Process through core pipeline
-        result = await process_message(
+        result, updated_context = await process_message(
             text=message_data.content,
             user_id=current_user.id,
             role=role,
             history=history,
+            session_context=session_context,
             db=db,
         )
 
         assistant_content = result.response
+
         # Collect all actions from tool results
         actions = [
             tr.result for tr in result.tool_results
-            if "action" in tr.result
+            if isinstance(tr.result, dict) and "action" in tr.result
         ]
         action = actions[-1] if actions else result.action
+
+        # Persist updated session context back to DB
+        apply_context_updates(chat_session, updated_context)
 
     except Exception as e:
         import traceback
         traceback.print_exc()
         assistant_content = f"Извините, AI-ассистент временно недоступен. Ошибка: {repr(e)}"
         action = None
+        actions = []
         result = None
 
-    # Save tool results as a "tool" message so LLM sees them in history
+    # Save tool results as a "tool" message for audit trail
     if result and result.tool_results:
         import json
         tool_data = json.dumps(
@@ -104,6 +124,7 @@ async def send_message(
             created_at=assistant_message.created_at,
         ),
         action=action,
+        actions=actions,
     )
 
 

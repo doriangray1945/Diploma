@@ -10,6 +10,10 @@ class BaseTool(ABC):
     name: str
     description: str
     parameters: dict[str, Any]
+    # Declarative contract: which SessionContext keys this tool updates after success.
+    # Format: {"<session_field>": "<dot.path.in_result[*].x>"}
+    # Example: {"visible_product_ids": "result.products[*].id"}
+    updates_context: dict[str, str] = {}
 
     def __init__(self, provider: DataProvider):
         self.provider = provider
@@ -26,6 +30,26 @@ class BaseTool(ABC):
                 "parameters": self.parameters,
             },
         }
+
+
+def flatten_ids(raw: Any) -> list[int]:
+    """Normalize product_ids from LLM — handles nested lists from $ref resolution.
+
+    LLM may produce ["$context.visible_product_ids"] which resolves to [[1,2,3]].
+    This flattens it to [1, 2, 3] and coerces to int.
+    """
+    if not raw:
+        return []
+    result: list[int] = []
+    for item in raw:
+        if isinstance(item, list):
+            result.extend(int(x) for x in item)
+        else:
+            try:
+                result.append(int(item))
+            except (TypeError, ValueError):
+                continue
+    return result
 
 
 class ToolRegistry:

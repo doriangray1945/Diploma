@@ -1,13 +1,16 @@
 import api from './client';
-import type { ChatMessage, ChatResponse } from '../types';
+import type { ChatMessage, ChatResponse, UiState } from '../types';
 
 interface ChatHistoryResponse {
   messages: ChatMessage[];
 }
 
 export const chatApi = {
-  sendMessage: async (content: string): Promise<ChatResponse> => {
-    const response = await api.post<ChatResponse>('/chat/message', { content });
+  sendMessage: async (content: string, uiState?: UiState): Promise<ChatResponse> => {
+    const response = await api.post<ChatResponse>('/chat/message', {
+      content,
+      ui_state: uiState,
+    });
     return response.data;
   },
 

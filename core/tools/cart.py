@@ -1,11 +1,12 @@
 from typing import Any
 
-from core.tools.base import BaseTool
+from core.tools.base import BaseTool, flatten_ids
 
 
 class AddToCartTool(BaseTool):
     name = "add_to_cart"
     description = "Add one or multiple products to the user's shopping cart"
+    updates_context = {"cart_summary": "result"}
     parameters = {
         "type": "object",
         "properties": {
@@ -28,9 +29,9 @@ class AddToCartTool(BaseTool):
 
     async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
         quantity = kwargs.get("quantity", 1)
-        ids = kwargs.get("product_ids") or []
+        ids = flatten_ids(kwargs.get("product_ids"))
         if kwargs.get("product_id"):
-            ids.append(kwargs["product_id"])
+            ids.append(int(kwargs["product_id"]))
 
         if not ids:
             return {"error": "product_id or product_ids is required"}
@@ -64,3 +65,18 @@ class GetCartTool(BaseTool):
     async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
         result = await self.provider.get_cart(user_id)
         return {"action": "show_cart", **result}
+
+
+class ClearCartTool(BaseTool):
+    name = "clear_cart"
+    description = "Remove ALL items from the user's shopping cart"
+    updates_context = {"cart_summary": "result"}
+    parameters = {
+        "type": "object",
+        "properties": {},
+        "required": [],
+    }
+
+    async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
+        result = await self.provider.clear_cart(user_id)
+        return {"action": "cart_cleared", **result}

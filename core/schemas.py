@@ -61,3 +61,66 @@ class UserContext(BaseModel):
     user_id: int
     role: str = "user"  # "user" | "admin"
     history: list[Message] = Field(default_factory=list)
+
+
+# --- Schema Router pipeline (Structured Output) ---
+
+
+class Intent(str, Enum):
+    EXECUTE = "execute"
+    ASK_CLARIFICATION = "ask_clarification"
+    ANSWER_ONLY = "answer_only"
+    OUT_OF_SCOPE = "out_of_scope"
+
+
+class PlanStepV2(BaseModel):
+    """A single executable step in a structured plan."""
+    step_id: str  # e.g. "step_1"
+    tool: str
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+class StructuredPlan(BaseModel):
+    """LLM output produced under PLANNER_SCHEMA constraint."""
+    intent: Intent
+    plan: list[PlanStepV2] = Field(default_factory=list)
+    user_message: str = ""
+
+
+class SessionContext(BaseModel):
+    """Per-user dialogue state. Resolves anaphora ('их', 'это') via $context.* refs."""
+    last_search: dict[str, Any] | None = None
+    visible_product_ids: list[int] = Field(default_factory=list)
+    current_filters: dict[str, Any] = Field(default_factory=dict)
+    open_product_id: int | None = None
+    cart_summary: dict[str, Any] | None = None
+    favorites_summary: dict[str, Any] | None = None
+
+    def to_prompt_dict(self) -> dict[str, Any]:
+        """Compact dict for embedding into the system prompt.
+
+        Strips bulky product lists from last_search to save LLM tokens.
+        The model only needs IDs (available via visible_product_ids).
+        """
+        d: dict[str, Any] = {}
+        if self.last_search:
+            # Keep only compact info — no full product objects
+            d["last_search"] = {
+                "filters": self.last_search.get("filters"),
+                "product_ids": [
+                    p["id"] for p in self.last_search.get("products", [])
+                    if isinstance(p, dict) and "id" in p
+                ],
+                "count": len(self.last_search.get("products", [])),
+            }
+        if self.visible_product_ids:
+            d["visible_product_ids"] = self.visible_product_ids
+        if self.current_filters:
+            d["current_filters"] = self.current_filters
+        if self.open_product_id is not None:
+            d["open_product_id"] = self.open_product_id
+        if self.cart_summary:
+            d["cart_summary"] = self.cart_summary
+        if self.favorites_summary:
+            d["favorites_summary"] = self.favorites_summary
+        return d

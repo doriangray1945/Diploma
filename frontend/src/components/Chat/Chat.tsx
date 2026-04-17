@@ -12,7 +12,7 @@ export default function Chat() {
     isLoading,
     sendMessage,
     clearHistory,
-    lastAction,
+    lastActions,
     clearLastAction,
     isOpen,
     toggleChat,
@@ -30,33 +30,47 @@ export default function Chat() {
     }
   }, [messages]);
 
-  // Handle chat actions
+  // Handle chat actions (process all actions from multi-step plans)
   useEffect(() => {
-    if (lastAction) {
-      if (lastAction.action === 'apply_filters' && lastAction.filters) {
-        setFilters(lastAction.filters);
+    if (lastActions.length > 0) {
+      let shouldScrollToCatalog = false;
+      for (const action of lastActions) {
+        if (action.action === 'apply_filters' && action.filters) {
+          setFilters(action.filters);
+          shouldScrollToCatalog = true;
+        }
+        if (action.action === 'added_to_cart') {
+          fetchCart();
+        }
+        if (action.action === 'added_to_favorites' || action.action === 'removed_from_favorites') {
+          fetchFavorites();
+        }
+        if (action.action === 'order_created') {
+          fetchCart();
+        }
+      }
+      if (shouldScrollToCatalog) {
         setTimeout(() => {
           document.getElementById('catalog-grid')?.scrollIntoView({ behavior: 'smooth' });
         }, 100);
       }
-      if (lastAction.action === 'added_to_cart') {
-        fetchCart();
-      }
-      if (lastAction.action === 'added_to_favorites' || lastAction.action === 'removed_from_favorites') {
-        fetchFavorites();
-      }
-      if (lastAction.action === 'order_created') {
-        fetchCart(); // Cart is cleared after order
-      }
       clearLastAction();
     }
-  }, [lastAction, setFilters, fetchCart, fetchFavorites, clearLastAction]);
+  }, [lastActions, setFilters, fetchCart, fetchFavorites, clearLastAction]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading || !user) return;
 
-    sendMessage(input.trim());
+    // Collect current UI state for context-aware responses
+    const pState = useProductsStore.getState();
+    const uiState = {
+      visible_product_ids: pState.products.map((p) => p.id),
+      current_filters: pState.filters || undefined,
+      open_product_id: undefined,
+    };
+
+    sendMessage(input.trim(), uiState);
     setInput('');
   };
 

@@ -164,6 +164,16 @@ class PostgresDataProvider:
         await self.db.commit()
         return {"removed": True}
 
+    async def clear_cart(self, user_id: int) -> dict[str, Any]:
+        result = await self.db.execute(
+            select(CartItem).where(CartItem.user_id == user_id)
+        )
+        items = result.scalars().all()
+        for item in items:
+            await self.db.delete(item)
+        await self.db.commit()
+        return {"cleared": True, "removed_count": len(items)}
+
     # ── Orders ───────────────────────────────────────────────────
 
     async def create_order(
@@ -385,6 +395,54 @@ class PostgresDataProvider:
         await self.db.delete(fav)
         await self.db.commit()
         return {"product_id": product_id}
+
+    async def clear_favorites(self, user_id: int) -> dict[str, Any]:
+        result = await self.db.execute(
+            select(Favorite).where(Favorite.user_id == user_id)
+        )
+        items = result.scalars().all()
+        for item in items:
+            await self.db.delete(item)
+        await self.db.commit()
+        return {"cleared": True, "removed_count": len(items)}
+
+    # ── Filter discovery ────────────────────────────────────────
+
+    _filter_cache: dict[str, Any] | None = None
+    _filter_cache_ts: float = 0.0
+
+    async def get_filter_options(self) -> dict[str, Any]:
+        """Return available filter values from DB (cached for 60s)."""
+        import time
+        from sqlalchemy import func
+
+        now = time.time()
+        if self._filter_cache and (now - self._filter_cache_ts) < 60:
+            return self._filter_cache
+
+        cat_result = await self.db.execute(
+            select(Product.category).distinct()
+        )
+        categories = sorted([r for r in cat_result.scalars().all() if r])
+
+        color_result = await self.db.execute(
+            select(Product.color).distinct().where(Product.color.isnot(None))
+        )
+        colors = sorted([r for r in color_result.scalars().all() if r])
+
+        price_result = await self.db.execute(
+            select(func.min(Product.price), func.max(Product.price))
+        )
+        row = price_result.one()
+        min_p, max_p = float(row[0] or 0), float(row[1] or 0)
+
+        self._filter_cache = {
+            "categories": categories,
+            "colors": colors,
+            "price_range": {"min": min_p, "max": max_p},
+        }
+        self._filter_cache_ts = now
+        return self._filter_cache
 
     # ── Helpers ──────────────────────────────────────────────────
 

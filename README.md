@@ -1,12 +1,12 @@
 # Nova Furnish - Мебельный магазин с AI-ассистентом
 
-Интернет-магазин мебели с интегрированным AI-чатом на базе Ollama (qwen3:8b), который помогает пользователям подбирать товары, управлять фильтрами каталога и оформлять заказы через естественный диалог.
+Интернет-магазин мебели с интегрированным AI-чатом на базе Ollama (qwen2.5:3b), который помогает пользователям подбирать товары, управлять фильтрами каталога и оформлять заказы через естественный диалог.
 
 ## Технологический стек
 
 - **Frontend:** React 18 + TypeScript + Vite + Tailwind CSS
 - **Backend:** FastAPI + SQLAlchemy + PostgreSQL + pgvector
-- **AI:** Ollama + qwen3:8b
+- **AI:** Ollama + qwen2.5:3b
 - **State Management:** Zustand
 - **Аутентификация:** JWT tokens
 
@@ -29,7 +29,7 @@ curl -fsSL https://ollama.com/install.sh | sh
 ollama serve
 
 # Загрузка модели
-ollama pull qwen3:8b
+ollama pull qwen2.5:3b
 ```
 
 ### Запуск проекта
@@ -96,8 +96,9 @@ Diploma/
 │   │   └── schemas/        # Pydantic схемы
 │   └── seed_data.py        # Начальные данные
 ├── core/                   # Универсальное ядро AI-агентов
-│   ├── agents/             # Orchestrator, Planner, Validator, Base
+│   ├── agents/             # SchemaPlanner, PlanExecutor, Validator, Base
 │   ├── llm/                # Ollama-клиент и LLMProvider Protocol
+│   ├── prompts/            # JSON Schema и system prompt для Schema Router
 │   ├── providers/          # DataProvider Protocol
 │   └── tools/              # Tool-функции для LLM
 ├── frontend/
@@ -172,7 +173,7 @@ AI-чат на базе Ollama позволяет:
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/furniture_store
 SECRET_KEY=your-secret-key
 OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=qwen3:8b
+OLLAMA_MODEL=qwen2.5:3b
 ```
 
 ## Тестовые данные

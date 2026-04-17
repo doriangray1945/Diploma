@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ChatMessage, ChatAction } from '../types';
+import type { ChatMessage, ChatAction, UiState } from '../types';
 import { chatApi } from '../api';
 
 interface ChatState {
@@ -7,9 +7,10 @@ interface ChatState {
   isLoading: boolean;
   error: string | null;
   lastAction: ChatAction | null;
+  lastActions: ChatAction[];
   isOpen: boolean;
 
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, uiState?: UiState) => Promise<void>;
   fetchHistory: () => Promise<void>;
   clearHistory: () => Promise<void>;
   clearLastAction: () => void;
@@ -17,14 +18,15 @@ interface ChatState {
   setOpen: (open: boolean) => void;
 }
 
-export const useChatStore = create<ChatState>((set, get) => ({
+export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   isLoading: false,
   error: null,
   lastAction: null,
+  lastActions: [],
   isOpen: true,
 
-  sendMessage: async (content: string) => {
+  sendMessage: async (content: string, uiState?: UiState) => {
     // Add user message optimistically
     const userMessage: ChatMessage = {
       id: Date.now(),
@@ -40,10 +42,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
 
     try {
-      const response = await chatApi.sendMessage(content);
+      const response = await chatApi.sendMessage(content, uiState);
+      const actions = response.actions || (response.action ? [response.action] : []);
       set((state) => ({
         messages: [...state.messages.slice(0, -1), userMessage, response.message],
         lastAction: response.action || null,
+        lastActions: actions,
         isLoading: false,
       }));
     } catch (error: unknown) {
@@ -64,14 +68,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
   clearHistory: async () => {
     try {
       await chatApi.clearHistory();
-      set({ messages: [], lastAction: null });
+      set({ messages: [], lastAction: null, lastActions: [] });
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Ошибка очистки истории';
+      const message = error instanceof Error ? error.message : 'Ошибка о��истки истории';
       set({ error: message });
     }
   },
 
-  clearLastAction: () => set({ lastAction: null }),
+  clearLastAction: () => set({ lastAction: null, lastActions: [] }),
 
   toggleChat: () => set((state) => ({ isOpen: !state.isOpen })),
 

@@ -16,6 +16,7 @@ class OllamaProvider:
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
         temperature: float | None = None,
+        format: dict[str, Any] | str | None = None,
     ) -> dict[str, Any]:
         ollama_messages = []
         for msg in messages:
@@ -33,19 +34,33 @@ class OllamaProvider:
                 ]
             ollama_messages.append(m)
 
+        options: dict[str, Any] = {
+            "temperature": temperature or self.config.temperature,
+            "num_predict": self.config.max_tokens,
+            "num_ctx": self.config.num_ctx,
+        }
+
         payload: dict[str, Any] = {
             "model": self.config.chat_model,
             "messages": ollama_messages,
             "stream": False,
             "think": False,  # disable Qwen3 reasoning block for chat latency
-            "options": {
-                "temperature": temperature or self.config.temperature,
-                "num_predict": self.config.max_tokens,
-            },
+            "keep_alive": self.config.keep_alive,
+            "options": options,
         }
 
         if tools:
             payload["tools"] = tools
+
+        if format is not None:
+            # Ollama 0.4+: JSON Schema for constrained decoding
+            payload["format"] = format
+
+        import json as _json
+        print(f"[LLM] model={payload['model']} msgs={len(ollama_messages)} format={'yes' if format else 'no'} num_predict={options.get('num_predict')}")
+        if format:
+            print(f"[LLM] schema tools enum: {_json.dumps(format, ensure_ascii=False)[:300]}")
+        print(f"[LLM] system prompt ({len(ollama_messages[0].get('content',''))} chars): {ollama_messages[0].get('content','')[:200]}")
 
         async with httpx.AsyncClient(timeout=self.config.request_timeout) as client:
             response = await client.post(

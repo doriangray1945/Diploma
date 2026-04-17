@@ -6,6 +6,7 @@ from core.tools.base import BaseTool
 class GetProductDetailsTool(BaseTool):
     name = "get_product_details"
     description = "Get detailed information about a product by its ID"
+    updates_context = {"open_product_id": "result.product.id"}
     parameters = {
         "type": "object",
         "properties": {
@@ -26,6 +27,11 @@ class GetProductDetailsTool(BaseTool):
 
 class ApplyFiltersTool(BaseTool):
     name = "apply_filters"
+    updates_context = {
+        "last_search": "result",
+        "visible_product_ids": "result.products[*].id",
+        "current_filters": "result.filters",
+    }
     description = (
         "Control the product catalog display. ALWAYS call this for ANY product request. "
         "Each call REPLACES all previous filters. Pass ALL desired filters every time. "
@@ -37,7 +43,7 @@ class ApplyFiltersTool(BaseTool):
         "properties": {
             "search": {
                 "type": "string",
-                "description": "Free-text search query",
+                "description": "Уточняющий поиск внутри категории (например: детская, офисный, складной, угловой)",
             },
             "category": {
                 "type": "string",
