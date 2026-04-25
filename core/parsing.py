@@ -1,0 +1,260 @@
+"""Deterministic Russian-language pre-parser.
+
+Runs once per user message before the LLM call. Extracts prices, quantity,
+quantifiers ("все"/"остальные"/"первые N") and category. Result is used to:
+  1. Render hint-line into the planner prompt
+  2. Trigger stale-context reset (new category or price)
+  3. Post-merge over LLM args (regex is more accurate on numbers)
+
+No external dependencies — DIMINUTIVES table covers diminutive forms by
+prefix-match (no pymorphy2).
+"""
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+
+
+@dataclass
+class ParseHints:
+    max_price: float | None = None
+    min_price: float | None = None
+    quantity: int | None = None
+    quantifier: str | None = None       # "all" | "remaining" | "first_N" | "last_N"
+    quantifier_n: int | None = None
+    category: str | None = None         # canonical from filter_options.categories
+    search: str | None = None           # adjective qualifier near a category
+    triggers_reset: bool = False
+
+
+# Russian diminutive/inflection prefixes per canonical category.
+# Match: a token whose lowercase form starts with one of these stems
+# (stem must be ≥ 5 chars to avoid false positives on short words).
+DIMINUTIVES: dict[str, list[str]] = {
+    "Кресла":  ["кресл", "креслиц"],
+    "Диваны":  ["диван", "диванчик"],
+    "Столы":   ["стол", "столик"],
+    "Стулья":  ["стул", "стульчик"],
+    "Шкафы":   ["шкаф", "шкафчик"],
+    "Кровати": ["кроват", "кроватк"],
+}
+
+
+# Common Russian adjective qualifiers used as `search` refinement inside a
+# category (e.g. «детские кровати» → search="детская"). Map: canonical form
+# → list of stems (≥4 chars) to match any inflection.
+# Canonical form is what we put in args.search.
+SEARCH_QUALIFIERS: dict[str, list[str]] = {
+    "детская":   ["детск"],
+    "офисный":   ["офисн"],
+    "складной":  ["складн"],
+    "угловой":   ["углов"],
+    "деревянный":["деревянн"],
+    "кожаный":   ["кожан"],
+    "лофт":      ["лофт"],
+    "классический":["классическ", "классич"],
+    "современный":["современн"],
+    "минималистичный":["минималистич", "минимал"],
+    "скандинавский":["скандинавск", "скандинав"],
+}
+
+
+# Price patterns. Order matters — ranges with explicit "не <X>" must be tried
+# BEFORE bare directional words, otherwise "не дороже" gets eaten by "дороже"
+# in the min-class. Each match is masked from the input before next pattern runs.
+#
+# Group 1 = number; Group 2 = optional multiplier suffix (тыс/т/к/k → ×1000).
+# We can't use \b between the number and a Cyrillic suffix in Python 3 because
+# digits and Cyrillic letters are both \w-class — no boundary between them.
+_NUM = r"(\d[\d\s]*)"
+# `(?!\w)` after the suffix prevents matching a single Cyrillic letter that
+# is actually the start of another word: "до 50000 ко мне" must NOT eat
+# "к" of "ко" as a ×1000 multiplier.
+_MULT = r"(?:\s*(тыс|т|к|k|руб|р|₽)(?!\w))?"
+
+_PRICE_PATTERNS: list[tuple[str, str]] = [
+    (rf"\bдо\s+{_NUM}{_MULT}",                                "max"),
+    (rf"\bне\s+(?:более|больше|дороже)\s+{_NUM}{_MULT}",      "max"),
+    (rf"\bв\s+пределах\s+{_NUM}{_MULT}",                      "max"),
+    (rf"\bне\s+(?:менее|меньше|дешевле)\s+{_NUM}{_MULT}",     "min"),
+    (rf"\bот\s+{_NUM}{_MULT}",                                "min"),
+    (rf"\b(?:более|больше|дороже)\s+{_NUM}{_MULT}",           "min"),
+    (rf"\b(?:менее|меньше|дешевле)\s+{_NUM}{_MULT}",          "max"),
+]
+
+
+_QTY_PATTERNS = [
+    rf"\bпо\s+(\d+)\s*шт",
+    rf"\b(\d+)\s*(?:штук[аи]?|шт\.?)\s+каждого\b",
+]
+
+
+# (regex, quantifier_name, group_idx_for_n_or_None)
+_QUANTIFIER_PATTERNS: list[tuple[str, str, int | None]] = [
+    (r"\b(остальн\w+|оставш\w+|других|прочих)\b", "remaining", None),
+    (r"\bпервы[ехй]\s+(\d+)\b",                   "first_N",   1),
+    (r"\bпоследни[ехй]\s+(\d+)\b",                "last_N",    1),
+    (r"\b(все|всё)\b",                            "all",       None),
+]
+
+
+_THOUSANDS = {"тыс", "т", "к", "k"}
+
+
+def _to_int(num_str: str, mult: str | None) -> int:
+    cleaned = re.sub(r"\s+", "", num_str)
+    n = int(cleaned)
+    if mult and mult.lower() in _THOUSANDS:
+        n *= 1000
+    return n
+
+
+def _extract_prices(text: str) -> tuple[int | None, int | None]:
+    """Walk price patterns in priority order, masking matched spans."""
+    max_p: int | None = None
+    min_p: int | None = None
+    work = text
+    for pattern, kind in _PRICE_PATTERNS:
+        m = re.search(pattern, work, re.IGNORECASE)
+        if not m:
+            continue
+        num = _to_int(m.group(1), m.group(2))
+        if kind == "max" and max_p is None:
+            max_p = num
+        elif kind == "min" and min_p is None:
+            min_p = num
+        # Mask this span so subsequent patterns don't re-match the same words
+        start, end = m.span()
+        work = work[:start] + (" " * (end - start)) + work[end:]
+    return min_p, max_p
+
+
+def _extract_quantity(text: str) -> int | None:
+    for pattern in _QTY_PATTERNS:
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            try:
+                return int(m.group(1))
+            except (ValueError, IndexError):
+                continue
+    return None
+
+
+def _extract_quantifier(text: str) -> tuple[str | None, int | None]:
+    for pattern, name, n_group in _QUANTIFIER_PATTERNS:
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            n = None
+            if n_group is not None:
+                try:
+                    n = int(m.group(n_group))
+                except (ValueError, IndexError):
+                    n = None
+            return name, n
+    return None, None
+
+
+def detect_search_qualifier(text: str) -> str | None:
+    """Find a stylistic/usage qualifier (детская/офисный/угловой...) in text.
+
+    Returns the canonical form (the dict key) of the first matching qualifier.
+    Tokenize on \\W+, lowercase; a token is a match if it starts with any
+    stem of length ≥ 4. First match wins.
+    """
+    if not text:
+        return None
+    tokens = [t.lower() for t in re.split(r"\W+", text) if t]
+    for token in tokens:
+        for canonical, stems in SEARCH_QUALIFIERS.items():
+            for stem in stems:
+                if len(stem) >= 4 and token.startswith(stem):
+                    return canonical
+    return None
+
+
+def normalize_category(text: str, categories: list[str]) -> str | None:
+    """Find a canonical category by matching tokens against DIMINUTIVES stems.
+
+    Tokenize on \\W+, lowercase. For each token, check if it starts with any
+    stem of length ≥ 5. First match wins.
+
+    Falls back to substring match against the canonical name (case-insensitive).
+    """
+    if not text or not categories:
+        return None
+
+    tokens = [t.lower() for t in re.split(r"\W+", text) if t]
+
+    # Pass 1: DIMINUTIVES stems (preferred — handles "диванчики", "креслица")
+    for token in tokens:
+        for canonical, stems in DIMINUTIVES.items():
+            if canonical not in categories:
+                continue
+            for stem in stems:
+                if len(stem) >= 5 and token.startswith(stem):
+                    return canonical
+
+    # Pass 2: direct canonical containment ("диваны" matches "Диваны")
+    text_lower = text.lower()
+    for canonical in categories:
+        if canonical.lower() in text_lower:
+            return canonical
+
+    return None
+
+
+def parse_user_text(text: str, categories: list[str]) -> ParseHints:
+    """Single-pass deterministic parse of a user message."""
+    if not text:
+        return ParseHints()
+
+    min_p, max_p = _extract_prices(text)
+    qty = _extract_quantity(text)
+    quant, n = _extract_quantifier(text)
+    cat = normalize_category(text, categories)
+    search = detect_search_qualifier(text)
+
+    triggers_reset = bool(cat) or (max_p is not None) or (min_p is not None)
+
+    return ParseHints(
+        max_price=max_p,
+        min_price=min_p,
+        quantity=qty,
+        quantifier=quant,
+        quantifier_n=n,
+        category=cat,
+        search=search,
+        triggers_reset=triggers_reset,
+    )
+
+
+def apply_quantifier(
+    hints: ParseHints,
+    visible_ids: list[int],
+    consumed_ids: set[int] | None = None,
+) -> list[int] | None:
+    """Resolve quantifier hint to a concrete list of product_ids.
+
+    Returns None if no quantifier hint or no visible_ids.
+    "all"       → all visible (no consumed filter — explicit select-all)
+    "remaining" → visible minus consumed
+    "first_N"   → first N from (visible minus consumed)
+    "last_N"    → last N from (visible minus consumed)
+    """
+    if not hints.quantifier or not visible_ids:
+        return None
+    consumed = consumed_ids or set()
+
+    if hints.quantifier == "all":
+        return list(visible_ids)
+    if hints.quantifier == "remaining":
+        return [pid for pid in visible_ids if pid not in consumed]
+
+    available = [pid for pid in visible_ids if pid not in consumed]
+    n = hints.quantifier_n or 1
+    if hints.quantifier == "first_N":
+        return available[:n]
+    if hints.quantifier == "last_N":
+        return available[-n:] if available else []
+
+    return None

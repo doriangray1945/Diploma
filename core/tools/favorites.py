@@ -5,7 +5,10 @@ from core.tools.base import BaseTool, flatten_ids
 
 class GetFavoritesTool(BaseTool):
     name = "get_favorites"
-    description = "Get the user's favorites/wishlist. Call this FIRST before removing items."
+    description = "Показать избранное (список желаемых товаров)"
+
+    def skeleton_examples(self):
+        return ["что в избранном", "покажи wishlist"]
     parameters = {
         "type": "object",
         "properties": {},
@@ -21,7 +24,13 @@ class GetFavoritesTool(BaseTool):
 
 class AddToFavoritesTool(BaseTool):
     name = "add_to_favorites"
-    description = "Add one or multiple products to the user's favorites/wishlist"
+    description = "Добавить товары в избранное (wishlist)"
+
+    def skeleton_examples(self):
+        return [
+            "добавь в избранное", "сохрани на потом",
+            "в wishlist", "запомни эти товары",
+        ]
     updates_context = {"favorites_summary": "result"}
     parameters = {
         "type": "object",
@@ -38,6 +47,26 @@ class AddToFavoritesTool(BaseTool):
         },
         "required": [],
     }
+
+    def param_schema(self, filter_options=None, session_context=None):
+        visible: list[int] = []
+        if session_context is not None:
+            visible = list(session_context.visible_product_ids or [])
+        ids_schema: dict[str, Any] = {"type": "array", "items": {"type": "integer"}}
+        if visible:
+            ids_schema["items"] = {"type": "integer", "enum": visible}
+            ids_schema["minItems"] = 1
+        return {
+            "type": "object",
+            "properties": {"product_ids": ids_schema},
+            "required": ["product_ids"],
+        }
+
+    def few_shot(self):
+        return [
+            {"user": "в избранное первые 3",
+             "args": {"product_ids": "$context.visible_product_ids"}},
+        ]
 
     async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
         ids = flatten_ids(kwargs.get("product_ids"))
@@ -66,7 +95,10 @@ class AddToFavoritesTool(BaseTool):
 
 class RemoveFromFavoritesTool(BaseTool):
     name = "remove_from_favorites"
-    description = "Remove one or multiple products from the user's favorites/wishlist"
+    description = "Удалить товары из избранного"
+
+    def skeleton_examples(self):
+        return ["убери из избранного", "удали из wishlist"]
     parameters = {
         "type": "object",
         "properties": {
@@ -82,6 +114,26 @@ class RemoveFromFavoritesTool(BaseTool):
         },
         "required": [],
     }
+
+    def param_schema(self, filter_options=None, session_context=None):
+        # Restrict to currently-favorited product ids when known.
+        allowed: list[int] = []
+        if session_context is not None and session_context.favorites_summary:
+            fav = session_context.favorites_summary
+            for entry in fav.get("favorites", []) or fav.get("items", []):
+                if isinstance(entry, dict) and "product_id" in entry:
+                    allowed.append(int(entry["product_id"]))
+                elif isinstance(entry, dict) and "id" in entry:
+                    allowed.append(int(entry["id"]))
+        ids_schema: dict[str, Any] = {"type": "array", "items": {"type": "integer"}}
+        if allowed:
+            ids_schema["items"] = {"type": "integer", "enum": allowed}
+            ids_schema["minItems"] = 1
+        return {
+            "type": "object",
+            "properties": {"product_ids": ids_schema},
+            "required": ["product_ids"],
+        }
 
     async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
         ids = flatten_ids(kwargs.get("product_ids"))
@@ -110,7 +162,10 @@ class RemoveFromFavoritesTool(BaseTool):
 
 class ClearFavoritesTool(BaseTool):
     name = "clear_favorites"
-    description = "Remove ALL items from the user's favorites/wishlist"
+    description = "Очистить избранное (удалить все товары из wishlist)"
+
+    def skeleton_examples(self):
+        return ["очисти избранное", "удали все из wishlist"]
     updates_context = {"favorites_summary": "result"}
     parameters = {
         "type": "object",

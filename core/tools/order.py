@@ -5,7 +5,13 @@ from core.tools.base import BaseTool
 
 class CreateOrderTool(BaseTool):
     name = "create_order"
-    description = "Create an order from the shopping cart. Ask user for address and phone first."
+    description = (
+        "Оформить заказ из корзины. "
+        "ТРЕБУЕТ адрес доставки и номер телефона — попроси их у пользователя если их нет."
+    )
+
+    def skeleton_examples(self):
+        return ["оформи заказ", "сделай заказ", "купить корзину"]
     parameters = {
         "type": "object",
         "properties": {
@@ -21,6 +27,18 @@ class CreateOrderTool(BaseTool):
         "required": ["address", "phone"],
     }
 
+    def param_schema(self, filter_options=None, session_context=None):
+        # Ollama 0.20.7's JSON-schema-to-grammar converter rejects `pattern`,
+        # so phone format is validated Python-side in plan_executor.
+        return {
+            "type": "object",
+            "properties": {
+                "address": {"type": "string", "minLength": 5},
+                "phone": {"type": "string"},
+            },
+            "required": ["address", "phone"],
+        }
+
     async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
         address = kwargs.pop("address", "")
         phone = kwargs.pop("phone", "")
@@ -32,7 +50,16 @@ class CreateOrderTool(BaseTool):
 
 class ModifyOrderTool(BaseTool):
     name = "modify_order"
-    description = "Modify an existing order (address, status, cancellation)"
+    description = (
+        "Изменить или отменить УЖЕ ОФОРМЛЕННЫЙ заказ по его номеру (order_id). "
+        "НЕ для добавления товаров в корзину — для корзины используй add_to_cart."
+    )
+
+    def skeleton_examples(self):
+        return [
+            "отмени заказ #123", "измени адрес заказа №5",
+            "поменяй статус заказа",
+        ]
     parameters = {
         "type": "object",
         "properties": {
@@ -51,6 +78,17 @@ class ModifyOrderTool(BaseTool):
         },
         "required": ["order_id"],
     }
+
+    def param_schema(self, filter_options=None, session_context=None):
+        return {
+            "type": "object",
+            "properties": {
+                "order_id": {"type": "integer", "minimum": 1},
+                "address": {"type": "string", "minLength": 5},
+                "status": {"type": "string"},
+            },
+            "required": ["order_id"],
+        }
 
     async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
         order_id = kwargs.pop("order_id")

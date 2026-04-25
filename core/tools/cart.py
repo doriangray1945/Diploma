@@ -5,7 +5,13 @@ from core.tools.base import BaseTool, flatten_ids
 
 class AddToCartTool(BaseTool):
     name = "add_to_cart"
-    description = "Add one or multiple products to the user's shopping cart"
+    description = "Добавить товары в корзину пользователя (с указанием количества)"
+
+    def skeleton_examples(self):
+        return [
+            "добавь в корзину", "положи в корзину",
+            "купи", "возьму это", "добавь все по 2 шт в корзину",
+        ]
     updates_context = {"cart_summary": "result"}
     parameters = {
         "type": "object",
@@ -26,6 +32,29 @@ class AddToCartTool(BaseTool):
         },
         "required": [],
     }
+
+    def param_schema(self, filter_options=None, session_context=None):
+        visible: list[int] = []
+        if session_context is not None:
+            visible = list(session_context.visible_product_ids or [])
+        ids_schema: dict[str, Any] = {"type": "array", "items": {"type": "integer"}}
+        if visible:
+            ids_schema["items"] = {"type": "integer", "enum": visible}
+            ids_schema["minItems"] = 1
+        return {
+            "type": "object",
+            "properties": {
+                "product_ids": ids_schema,
+                "quantity": {"type": "integer", "minimum": 1, "maximum": 99},
+            },
+            "required": ["product_ids"],
+        }
+
+    def few_shot(self):
+        return [
+            {"user": "добавь все по 2 шт",
+             "args": {"product_ids": "$context.visible_product_ids", "quantity": 2}},
+        ]
 
     async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
         quantity = kwargs.get("quantity", 1)
@@ -55,7 +84,10 @@ class AddToCartTool(BaseTool):
 
 class GetCartTool(BaseTool):
     name = "get_cart"
-    description = "Get the contents of the user's shopping cart"
+    description = "Показать содержимое корзины пользователя"
+
+    def skeleton_examples(self):
+        return ["что в корзине", "покажи корзину"]
     parameters = {
         "type": "object",
         "properties": {},
@@ -69,7 +101,10 @@ class GetCartTool(BaseTool):
 
 class ClearCartTool(BaseTool):
     name = "clear_cart"
-    description = "Remove ALL items from the user's shopping cart"
+    description = "Очистить корзину (удалить все товары)"
+
+    def skeleton_examples(self):
+        return ["очисти корзину", "удали всё из корзины"]
     updates_context = {"cart_summary": "result"}
     parameters = {
         "type": "object",

@@ -5,7 +5,8 @@ from core.tools.base import BaseTool
 
 class AddProductTool(BaseTool):
     name = "add_product"
-    description = "Add a new product to the catalog"
+    description = "Добавить новый товар в каталог (только для админов)"
+    role = "admin"
     parameters = {
         "type": "object",
         "properties": {
@@ -27,7 +28,8 @@ class AddProductTool(BaseTool):
 
 class UpdateProductTool(BaseTool):
     name = "update_product"
-    description = "Update product information"
+    description = "Изменить данные товара в каталоге (только для админов)"
+    role = "admin"
     parameters = {
         "type": "object",
         "properties": {
@@ -49,7 +51,8 @@ class UpdateProductTool(BaseTool):
 
 class DeleteProductTool(BaseTool):
     name = "delete_product"
-    description = "Delete a product from the catalog"
+    description = "Удалить товар из каталога (только для админов)"
+    role = "admin"
     parameters = {
         "type": "object",
         "properties": {

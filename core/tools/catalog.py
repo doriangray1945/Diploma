@@ -5,7 +5,10 @@ from core.tools.base import BaseTool
 
 class GetProductDetailsTool(BaseTool):
     name = "get_product_details"
-    description = "Get detailed information about a product by its ID"
+    description = "Открыть карточку товара с подробной информацией по его ID"
+
+    def skeleton_examples(self):
+        return ["открой товар", "покажи детали товара", "подробнее про товар"]
     updates_context = {"open_product_id": "result.product.id"}
     parameters = {
         "type": "object",
@@ -17,6 +20,23 @@ class GetProductDetailsTool(BaseTool):
         },
         "required": ["product_id"],
     }
+
+    def param_schema(self, filter_options=None, session_context=None):
+        # Restrict product_id to currently visible products + the one already open.
+        allowed: list[int] = []
+        if session_context is not None:
+            allowed = list(session_context.visible_product_ids or [])
+            if session_context.open_product_id is not None:
+                if session_context.open_product_id not in allowed:
+                    allowed.append(session_context.open_product_id)
+        pid_schema: dict[str, Any] = {"type": "integer"}
+        if allowed:
+            pid_schema["enum"] = allowed
+        return {
+            "type": "object",
+            "properties": {"product_id": pid_schema},
+            "required": ["product_id"],
+        }
 
     async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
         product = await self.provider.get_product(kwargs["product_id"])
@@ -33,11 +53,17 @@ class ApplyFiltersTool(BaseTool):
         "current_filters": "result.filters",
     }
     description = (
-        "Control the product catalog display. ALWAYS call this for ANY product request. "
-        "Each call REPLACES all previous filters. Pass ALL desired filters every time. "
-        "Call with NO arguments to clear filters and show all products. "
-        "The catalog shows product cards with images and prices — do NOT list products yourself."
+        "Найти/показать товары в каталоге по фильтрам "
+        "(категория, поиск, цена). Каждый вызов ЗАМЕНЯЕТ предыдущие фильтры — "
+        "передавай все нужные фильтры сразу. Без аргументов — показать все товары."
     )
+
+    def skeleton_examples(self):
+        return [
+            "покажи диваны", "найди столы до 30000",
+            "предложи кровати детские", "что есть из стульев",
+            "покажи все товары",
+        ]
     parameters = {
         "type": "object",
         "properties": {
@@ -64,6 +90,47 @@ class ApplyFiltersTool(BaseTool):
         },
         "required": [],
     }
+
+    def param_schema(self, filter_options=None, session_context=None):
+        cat_schema: dict[str, Any] = {"type": "string"}
+        if filter_options and filter_options.get("categories"):
+            cat_schema["enum"] = list(filter_options["categories"])
+        return {
+            "type": "object",
+            "properties": {
+                "search": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "description": (
+                        "Уточняющий запрос ВНУТРИ категории — обычно это "
+                        "прилагательное-определение к категории "
+                        "(детская, офисный, складной, угловой, деревянный). "
+                        "ОБЯЗАТЕЛЬНО заполняй когда в запросе есть подобное "
+                        "прилагательное (например «детские кровати» → search='детская')."
+                    ),
+                },
+                "category": cat_schema,
+                "min_price": {"type": "number", "minimum": 0},
+                "max_price": {"type": "number", "minimum": 0},
+                "in_stock": {"type": "boolean"},
+            },
+            "required": [],
+        }
+
+    def few_shot(self):
+        return [
+            {"user": "диваны до 50000",
+             "args": {"category": "Диваны", "max_price": 50000}},
+            {"user": "офисные стулья от 5000 до 20000",
+             "args": {"category": "Стулья", "search": "офисный",
+                      "min_price": 5000, "max_price": 20000}},
+            {"user": "предложи кровати детские",
+             "args": {"category": "Кровати", "search": "детская"}},
+            {"user": "складные столы",
+             "args": {"category": "Столы", "search": "складной"}},
+            {"user": "покажи угловые диваны",
+             "args": {"category": "Диваны", "search": "угловой"}},
+        ]
 
     async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
         filters = {k: v for k, v in kwargs.items() if v is not None and k != "user_id"}
