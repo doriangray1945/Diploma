@@ -385,17 +385,17 @@ def build_args_prompt(
 
     Includes ONLY this tool's own context: name, description, its few_shot.
     Other tools are not mentioned — fewer distractor signals.
-    """
-    parts: list[str] = []
 
-    parts.append(f"Заполни args для инструмента: {tool.name}")
+    Layout: the FIRST tokens are intentionally identical across every tool
+    (`_ARGS_COMMON_HEADER`) so Ollama prefix-cache hits between args-fill
+    calls in the same request — saves ~20-30s pre-fill on every call after
+    the first.
+    """
+    parts: list[str] = [_ARGS_COMMON_HEADER]
+
+    parts.append(f"Инструмент: {tool.name}")
     if tool.description:
         parts.append(f"Назначение: {tool.description.strip()}")
-
-    parts.append(
-        "Передавай только поля упомянутые в запросе или необходимые для действия. "
-        "Не подставляй пустые/нулевые значения."
-    )
 
     examples = tool.few_shot() or []
     if examples:
@@ -421,3 +421,12 @@ def build_args_prompt(
         parts.append(hint_line)
 
     return "\n".join(parts)
+
+
+# Identical bytes at the top of every per-tool args prompt → Ollama
+# prefix-cache reuses pre-fill across args calls.
+_ARGS_COMMON_HEADER = (
+    "Заполни args для одного инструмента строго по предоставленной JSON-схеме. "
+    "Передавай только поля упомянутые в запросе или необходимые для действия. "
+    "Не подставляй пустые/нулевые значения."
+)

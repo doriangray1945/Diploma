@@ -22,6 +22,7 @@ from difflib import SequenceMatcher
 
 from core.config import CoreConfig
 from core.llm.base import LLMProvider
+from core.parsing import ParseHints
 from core.schemas import Message, Role
 
 
@@ -43,29 +44,24 @@ _SCHEMA = {
 
 
 _SYSTEM_PROMPT = (
-    "Ты разбиваешь запрос пользователя на простые отдельные действия. "
-    "Каждое действие — короткая ясная фраза на русском. "
-    "Исправляй очевидные опечатки. "
-    "Если в запросе несколько действий («X и Y», «найди и добавь», "
-    "«остальные по 5») — раздели на отдельные пункты. "
-    "Если запрос уже простой — верни список из одного элемента "
-    "(не выдумывай дополнительные действия).\n\n"
-    "Примеры:\n"
-    'USER: «добавь все диваны до 50000 в корзину по 5 шт, остальные в избранное»\n'
-    'JSON: {"actions": ["найди диваны до 50000", "добавь все найденные товары в корзину по 5 шт", "оставшиеся товары добавь в избранное"]}\n'
-    'USER: «покажи диваны»\n'
-    'JSON: {"actions": ["покажи диваны"]}\n'
-    'USER: «найди X, добавь в корзину и оформи заказ»\n'
-    'JSON: {"actions": ["найди X", "добавь все найденные товары в корзину", "оформи заказ"]}'
+    "Перефразируй запрос в нумерованный список простых действий. "
+    "Исправь очевидные опечатки. «X и Y» → 2 пункта. "
+    "Простой запрос → 1 пункт.\n"
+    'Пример: "добавь все диваны до 50000 в корзину, остальные в избранное" → '
+    '{"actions":["найди диваны до 50000",'
+    '"добавь найденные в корзину","остальные в избранное"]}'
 )
 
 
-# Trigger substrings that hint at a multi-action query. Match is
-# case-insensitive against the lowercased text. Whitespace boundary on each
-# side is enforced via leading space (ensures «и » matches but not «или»).
+# Triggers hinting at multi-action grammar. Always-decompose set (broad).
 _TRIGGERS = (
     " и ", " и,", "а также", "затем", "потом", "после ",
     "остальн", "оставш", "сначала", "далее",
+)
+# Subset that implies «second action on the residual set» — these queries
+# REALLY need decomposition even when the parser nominally extracted hints.
+_COMPLEX_TRIGGERS = (
+    "остальн", "оставш", "потом", "затем", "сначала", "далее", "а также",
 )
 
 
@@ -74,11 +70,23 @@ def _has_trigger(text: str) -> bool:
     return any(t in low for t in _TRIGGERS)
 
 
-def _should_decompose(text: str) -> bool:
-    """Skip-rule: pass simple short queries through unchanged."""
+def _has_complex_trigger(text: str) -> bool:
+    low = " " + text.lower() + " "
+    return any(t in low for t in _COMPLEX_TRIGGERS)
+
+
+def _should_decompose(text: str, hints: ParseHints | None = None) -> bool:
+    """Skip-rule: pass simple/clean queries through unchanged."""
     if not text:
         return False
+    # Short single-action queries — always skip
     if len(text) < 40 and "," not in text and not _has_trigger(text):
+        return False
+    # Parser found enough structure (category or price) AND there's no
+    # «остальные/потом/затем» phrase — decomposer would just rephrase what
+    # we already understand. Skip.
+    if hints is not None and hints.triggers_reset \
+       and not _has_complex_trigger(text):
         return False
     return True
 
@@ -88,9 +96,13 @@ class Decomposer:
         self.llm = llm
         self.config = config
 
-    async def maybe_decompose(self, text: str) -> str:
+    async def maybe_decompose(
+        self,
+        text: str,
+        hints: ParseHints | None = None,
+    ) -> str:
         """Return either the original text (skip) or a numbered action list."""
-        if not _should_decompose(text):
+        if not _should_decompose(text, hints):
             return text
 
         actions = await self._call(text)

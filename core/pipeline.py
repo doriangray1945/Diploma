@@ -15,11 +15,43 @@ from core.schemas import (
     Complexity,
     Intent,
     Message,
+    PlanStepV2,
     Role,
     SessionContext,
+    StructuredPlan,
     UserContext,
 )
 from core.tools.base import ToolRegistry
+
+
+# Substrings in the user text that imply an action beyond a pure search —
+# if any are present, we MUST go through skeleton planner (can't fast-path).
+_NON_SEARCH_TRIGGERS = (
+    "корзин", "избранн", "wishlist", "заказ",
+    "купи", "оформи", "положи", "удали", "очисти",
+)
+_MULTI_ACTION_TRIGGERS = (
+    ",", " и ", " и,", "потом", "затем", "остальн", "оставш", "а также",
+)
+
+
+def _is_obvious_search(text: str, hints) -> bool:
+    """Fast-path: text describes ONLY a catalog filter request.
+
+    Conditions: parser found a category, text is short, no cart/favorites/
+    order verbs, no multi-action triggers. If true, the plan is trivially
+    a single apply_filters step with deterministic args from hints.
+    """
+    if not text or hints is None or not hints.category:
+        return False
+    if len(text) > 80:
+        return False
+    low = text.lower()
+    if any(t in low for t in _NON_SEARCH_TRIGGERS):
+        return False
+    if any(t in low for t in _MULTI_ACTION_TRIGGERS):
+        return False
+    return True
 
 
 def _build_legacy_system_prompt(tools: ToolRegistry, config: CoreConfig) -> str:
@@ -134,29 +166,43 @@ class Pipeline:
             session_context.visible_product_ids = []
             session_context.current_filters = {}
 
-        # Optional 0-th LLM call: rephrase tangled multi-action queries
-        # (with typos or "X и Y, остальные по N" grammar) into a clean
-        # numbered list. Skipped for short simple queries (no latency cost).
-        # Parser hints + args_filler keep working on the ORIGINAL text.
-        decomposer = Decomposer(self.llm, self.config)
-        effective_text = await decomposer.maybe_decompose(last_user_text)
-        messages_for_skeleton = list(messages)
-        if effective_text != last_user_text and messages_for_skeleton:
-            messages_for_skeleton[-1] = Message(
-                role=Role.USER, content=effective_text
-            )
-
         planner = SchemaPlannerAgent(self.llm, tools, self.config)
         args_filler = ArgsFiller(self.llm, tools, self.config)
         executor = PlanExecutor(tools, args_filler)
 
-        # Hybrid pipeline call 1: tool sequence only (no args). The skeleton
-        # schema can't leak fields between tools because there is no `args`
-        # field at all — args are filled per-step by ArgsFiller below.
-        plan = await planner.plan_skeleton(
-            messages_for_skeleton, session_context,
-            filter_options=filter_options, hints=hints,
-        )
+        # FAST-PATH: an unambiguous «show me X»-style search request can skip
+        # both decomposer and skeleton calls and execute apply_filters directly
+        # with deterministic args from hints. Saves 30-60s on warm CPU.
+        if _is_obvious_search(last_user_text, hints):
+            plan = StructuredPlan(
+                intent=Intent.EXECUTE,
+                plan=[PlanStepV2(step_id="step_1", tool="apply_filters", args={})],
+                user_message="",
+            )
+            messages_for_skeleton = list(messages)
+        else:
+            # Optional 0-th LLM call: rephrase tangled multi-action queries
+            # (with typos or "X и Y, остальные по N" grammar) into a clean
+            # numbered list. Skipped for short simple queries via skip-rule.
+            # Parser hints + args_filler keep working on the ORIGINAL text.
+            decomposer = Decomposer(self.llm, self.config)
+            effective_text = await decomposer.maybe_decompose(
+                last_user_text, hints=hints
+            )
+            messages_for_skeleton = list(messages)
+            if effective_text != last_user_text and messages_for_skeleton:
+                messages_for_skeleton[-1] = Message(
+                    role=Role.USER, content=effective_text
+                )
+
+            # Hybrid pipeline call 1: tool sequence only (no args). The
+            # skeleton schema can't leak fields between tools because there
+            # is no `args` field at all — args are filled per-step by
+            # ArgsFiller below.
+            plan = await planner.plan_skeleton(
+                messages_for_skeleton, session_context,
+                filter_options=filter_options, hints=hints,
+            )
 
         tool_results = []
         issues = []
