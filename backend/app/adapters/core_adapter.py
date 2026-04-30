@@ -12,6 +12,7 @@ from core.tools.favorites import GetFavoritesTool, AddToFavoritesTool, RemoveFro
 from core.tools.admin import AddProductTool, UpdateProductTool, DeleteProductTool
 
 from app.adapters.data_provider import PostgresDataProvider
+from app.adapters.plan_cache_adapter import PlanCacheAdapter
 from app.core.config import settings
 
 
@@ -76,7 +77,8 @@ async def process_message(
     llm = OllamaProvider(config)
     tools = _build_tools(provider, role)
 
-    pipeline = Pipeline(llm, provider, config)
+    plan_cache = PlanCacheAdapter(db)
+    pipeline = Pipeline(llm, provider, config, plan_cache=plan_cache)
 
     session_context = session_context or SessionContext()
 

@@ -98,12 +98,16 @@ class SchemaPlannerAgent:
         filter_options: dict[str, Any] | None = None,
         hints: Any | None = None,
         extra_system: str | None = None,
+        few_shot_plan: dict[str, Any] | None = None,
     ) -> StructuredPlan:
         """Hybrid pipeline call 1: pick tool sequence, args left empty.
 
-        The skeleton schema has no `args` property at all — the model can't
-        leak fields from one tool into another because there's nowhere to
-        leak. Args are filled later, per-step, by ArgsFiller.
+        The skeleton schema has no `args` property — model can't leak fields
+        between tools. Args are filled later, per-step, by ArgsFiller.
+
+        `few_shot_plan` (optional) is a previously-successful plan for a
+        semantically similar query (cache hybrid tier, sim 0.85-0.95).
+        Injected into the system prompt as a soft hint to tighten generation.
         """
         schema = build_planner_schema_skeleton(self.tools)
         system_prompt = build_planner_skeleton_prompt(
@@ -113,6 +117,12 @@ class SchemaPlannerAgent:
             session_context=session_context,
             hints=hints,
         )
+        if few_shot_plan is not None:
+            system_prompt = (
+                system_prompt
+                + "\nПример успешного плана для похожего запроса:\n"
+                + json.dumps(few_shot_plan, ensure_ascii=False)
+            )
         if extra_system:
             system_prompt = system_prompt + "\n" + extra_system
 

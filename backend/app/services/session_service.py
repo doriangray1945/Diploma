@@ -34,6 +34,7 @@ def db_session_to_context(session: ChatSession) -> SessionContext:
         open_product_id=session.open_product_id,
         cart_summary=session.cart_summary,
         favorites_summary=session.favorites_summary,
+        last_cache_hit_id=session.last_cache_hit_id,
     )
 
 
@@ -63,3 +64,4 @@ def apply_context_updates(
     session.open_product_id = context.open_product_id
     session.cart_summary = context.cart_summary
     session.favorites_summary = context.favorites_summary
+    session.last_cache_hit_id = context.last_cache_hit_id

@@ -5,6 +5,7 @@ from app.models.order import Order, OrderItem
 from app.models.favorite import Favorite
 from app.models.chat import ChatMessage
 from app.models.chat_session import ChatSession
+from app.models.plan_cache import PlanCacheEntry
 
 __all__ = [
     "User",
@@ -15,4 +16,5 @@ __all__ = [
     "Favorite",
     "ChatMessage",
     "ChatSession",
+    "PlanCacheEntry",
 ]

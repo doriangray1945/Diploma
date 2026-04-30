@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
@@ -15,6 +16,10 @@ from app.services.session_service import (
     merge_ui_state,
     apply_context_updates,
 )
+from core.parsing import is_negative_feedback
+
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -42,6 +47,42 @@ async def send_message(
     chat_session = await get_or_create_session(current_user.id, db)
     if message_data.ui_state:
         merge_ui_state(chat_session, message_data.ui_state.model_dump(exclude_none=True))
+
+    # Negative feedback («не то» / «отмени» / «неправильно») is a complaint
+    # about the previous turn — NOT an actionable intent. Two things happen:
+    #   1. If we applied a cached plan last turn, downvote that entry
+    #      (after 3 negatives plan_cache.record_negative deletes it).
+    #   2. Short-circuit the pipeline entirely. Otherwise the LLM tries to
+    #      "execute" the complaint — we observed it generating add_to_cart.
+    if is_negative_feedback(message_data.content):
+        if chat_session.last_cache_hit_id:
+            from app.services import plan_cache
+            log.info(
+                "[CACHE] negative_feedback user=%d entry=%d",
+                current_user.id, chat_session.last_cache_hit_id,
+            )
+            await plan_cache.record_negative(db, chat_session.last_cache_hit_id)
+            chat_session.last_cache_hit_id = None
+        clarification = (
+            "Понял, что предыдущее не подошло. Что бы вы хотели вместо этого?"
+        )
+        assistant_msg = ChatMessage(
+            user_id=current_user.id, role="assistant", content=clarification,
+        )
+        db.add(assistant_msg)
+        await db.commit()
+        await db.refresh(assistant_msg)
+        return ChatResponse(
+            message=ChatMessageResponse(
+                id=assistant_msg.id,
+                role=assistant_msg.role,
+                content=assistant_msg.content,
+                created_at=assistant_msg.created_at,
+            ),
+            action=None,
+            actions=[],
+        )
+
     session_context = db_session_to_context(chat_session)
 
     # Get chat history: only user+assistant (no tool), last N

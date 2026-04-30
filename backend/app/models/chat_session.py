@@ -39,6 +39,10 @@ class ChatSession(Base):
     cart_summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     favorites_summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
+    # Plan cache entry id applied on the previous turn; chat.py uses it to
+    # attribute negative feedback to a specific cache entry.
+    last_cache_hit_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )

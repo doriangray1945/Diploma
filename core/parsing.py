@@ -203,6 +203,69 @@ def normalize_category(text: str, categories: list[str]) -> str | None:
     return None
 
 
+# Substrings that mark a user message as a complaint about the previous
+# assistant turn, NOT an actionable intent. Used by chat.py to short-circuit
+# the pipeline (avoid the LLM re-interpreting "не то" as a fresh action,
+# which we observed: bot kept adding to cart while user was complaining).
+# Stems chosen to match Russian inflections («не та», «отмени», «отменить»).
+_NEGATIVE_FEEDBACK_PATTERNS = (
+    "не то", "не это", "не так", "не такие", "не такой", "не такая",
+    "неправильн", "не подход", "не устраив",
+    "отмен",          # отмени, отменить, отменяй
+    "ошиб",           # ошибка, ошибся
+    "не хотел", "не хочу",
+)
+
+
+def normalize_for_embedding(text: str, categories: list[str] | None = None) -> str:
+    """Strip values that should NOT influence semantic plan retrieval.
+
+    The plan cache asks: «have we seen a query with the same INTENT before?»
+    That intent is encoded by action verbs (найди / положи / удали), target
+    words (корзина / избранное), and grammar of the request. Specific values
+    — numbers, category names, search qualifiers — go through the parser
+    into args, NOT into the cache key.
+
+    Without normalization, «найди диваны до 70000» and «найди диваны до
+    90000» get embedding similarity ~0.89 and miss the trust threshold,
+    even though they want the same plan. After normalization both become
+    «найди до» → identical embedding → cache hit.
+
+    Note: category match guard (`Pipeline._categories_match`) and intent
+    match guard (`Pipeline._intent_match`) still run on the RAW texts, so
+    aliasing risk doesn't grow.
+    """
+    if not text:
+        return ""
+    n = text.lower()
+    # Strip digit sequences (prices, quantities, sizes — handled by parser)
+    n = re.sub(r"\d+", " ", n)
+    # Strip canonical category names and their diminutive inflections
+    if categories:
+        for cat in categories:
+            n = re.sub(rf"\b{re.escape(cat.lower())}\w*\b", " ", n)
+    for stems in DIMINUTIVES.values():
+        for stem in stems:
+            if len(stem) >= 5:
+                n = re.sub(rf"\b{re.escape(stem)}\w*\b", " ", n)
+    # Strip search-qualifier stems (детск, офисн, складн, угловой, ...)
+    for stems in SEARCH_QUALIFIERS.values():
+        for stem in stems:
+            if len(stem) >= 4:
+                n = re.sub(rf"\b{re.escape(stem)}\w*\b", " ", n)
+    # Collapse whitespace
+    n = re.sub(r"\s+", " ", n).strip()
+    return n
+
+
+def is_negative_feedback(text: str) -> bool:
+    """True if `text` looks like a complaint about the previous turn."""
+    if not text:
+        return False
+    low = text.lower()
+    return any(pat in low for pat in _NEGATIVE_FEEDBACK_PATTERNS)
+
+
 def parse_user_text(text: str, categories: list[str]) -> ParseHints:
     """Single-pass deterministic parse of a user message."""
     if not text:

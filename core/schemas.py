@@ -95,6 +95,11 @@ class SessionContext(BaseModel):
     open_product_id: int | None = None
     cart_summary: dict[str, Any] | None = None
     favorites_summary: dict[str, Any] | None = None
+    # Plan cache entry id used by the LAST turn's plan. Read by chat.py on
+    # the next turn to attribute negative feedback («не то»/«отмени») to
+    # the entry that produced the bad plan. Set by pipeline after a
+    # successful cache hit OR after a fresh store; cleared otherwise.
+    last_cache_hit_id: int | None = None
 
     def to_prompt_dict(self) -> dict[str, Any]:
         """Compact dict for embedding into the system prompt.

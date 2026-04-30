@@ -12,6 +12,20 @@ async def init_pgvector():
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
+
+async def apply_inline_migrations():
+    """Idempotent ALTERs for columns added to pre-existing tables.
+
+    SQLAlchemy's `Base.metadata.create_all` only creates missing tables,
+    not missing columns. We don't run Alembic; additive migrations live
+    here as `ADD COLUMN IF NOT EXISTS`. Each statement must be idempotent.
+    """
+    async with engine.begin() as conn:
+        await conn.execute(text(
+            "ALTER TABLE chat_sessions "
+            "ADD COLUMN IF NOT EXISTS last_cache_hit_id INTEGER"
+        ))
+
 async_session_maker = async_sessionmaker(
     engine,
     class_=AsyncSession,

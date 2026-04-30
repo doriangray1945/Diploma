@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import logging
+
 from core.agents.args_filler import ArgsFiller
 from core.agents.base import BaseAgent
 from core.agents.decomposer import Decomposer
@@ -8,7 +11,8 @@ from core.agents.schema_planner import SchemaPlannerAgent
 from core.agents.validator import ValidatorAgent
 from core.config import CoreConfig
 from core.llm.base import LLMProvider
-from core.parsing import parse_user_text
+from core.parsing import is_negative_feedback, parse_user_text
+from core.plan_cache_port import PlanCachePort
 from core.providers.base import DataProvider
 from core.schemas import (
     AgentResult,
@@ -22,6 +26,20 @@ from core.schemas import (
     UserContext,
 )
 from core.tools.base import ToolRegistry
+
+
+log = logging.getLogger(__name__)
+
+
+# Confidence thresholds for plan cache routing.
+# Calibrated against nomic-embed-text on Russian short queries:
+#   identical / paraphrase ("найди X" vs "покажи X")        ≈ 0.97-1.00
+#   synonym verb           ("положи" vs "закинь")           ≈ 0.84-0.86
+#   different category, same shape ("диваны" vs "кресла")   ≈ 0.84
+# 0.95 is safely above synonym-verb floor; 0.85 catches synonyms but needs
+# the intent/category guards in _intent_match / _categories_match below.
+_CACHE_TRUST_THRESHOLD = 0.95
+_CACHE_HYBRID_THRESHOLD = 0.85
 
 
 # Substrings in the user text that imply an action beyond a pure search —
@@ -105,10 +123,67 @@ class Pipeline:
         llm: LLMProvider,
         provider: DataProvider,
         config: CoreConfig | None = None,
+        plan_cache: PlanCachePort | None = None,
     ):
         self.llm = llm
         self.provider = provider
         self.config = config or CoreConfig()
+        self.plan_cache = plan_cache
+
+    @staticmethod
+    def _tools_signature(tools: ToolRegistry) -> str:
+        """Stable hash of registered tool names — pins cache entries to a registry shape."""
+        names = sorted(t.name for t in tools.all())
+        return hashlib.sha256(",".join(names).encode()).hexdigest()[:16]
+
+    @staticmethod
+    def _categories_match(
+        current_text: str,
+        cached_text: str,
+        categories: list[str],
+    ) -> bool:
+        """Cached plan must address the SAME category (or both unspecified).
+
+        Without this guard, embedding rates "диваны до 50000" vs "кресла до
+        30000" at ~0.84, and the hybrid tier would routinely pick a
+        wrong-category plan as inspiration.
+        """
+        cur = parse_user_text(current_text, categories)
+        cached_h = parse_user_text(cached_text, categories)
+        if cur.category and cached_h.category and cur.category != cached_h.category:
+            return False
+        return True
+
+    @staticmethod
+    def _intent_match(current_text: str, cached_text: str) -> bool:
+        """Cached plan must address the SAME action targets and polarity.
+
+        Embedding sim is too coarse for short Russian queries — it can't
+        reliably tell apart:
+          - target set: «X в корзину» vs «X в корзину И в избранное» (sim≈0.99)
+          - polarity:   «добавь» vs «удали» (high sim, opposite intent)
+        Pure feature-extraction guard avoids these aliases at zero LLM cost.
+        """
+        targets = ("корзин", "избранн", "wishlist", "заказ")
+        cur_t = {t for t in targets if t in current_text.lower()}
+        cached_t = {t for t in targets if t in cached_text.lower()}
+        if cur_t != cached_t:
+            return False
+        positive = ("добав", "положи", "купи", "закин", "сохран")
+        negative = ("удал", "убер", "очист", "верн", "сним")
+        cur_p = (
+            "+" if any(p in current_text.lower() for p in positive)
+            else "-" if any(n in current_text.lower() for n in negative)
+            else "?"
+        )
+        cached_p = (
+            "+" if any(p in cached_text.lower() for p in positive)
+            else "-" if any(n in cached_text.lower() for n in negative)
+            else "?"
+        )
+        if cur_p in ("+", "-") and cached_p in ("+", "-") and cur_p != cached_p:
+            return False
+        return True
 
     async def run(
         self,
@@ -170,10 +245,53 @@ class Pipeline:
         args_filler = ArgsFiller(self.llm, tools, self.config)
         executor = PlanExecutor(tools, args_filler)
 
-        # FAST-PATH: an unambiguous «show me X»-style search request can skip
-        # both decomposer and skeleton calls and execute apply_filters directly
-        # with deterministic args from hints. Saves 30-60s on warm CPU.
-        if _is_obvious_search(last_user_text, hints):
+        # PLAN CACHE: confidence-based plan retrieval. Tiers:
+        #   sim ≥ 0.95  + intent + cat OK → trust → use cached plan, skip skeleton
+        #   0.85-0.95   + intent + cat OK → hybrid → skeleton with cached as few-shot
+        #   else                          → cache miss, full pipeline
+        # Skip cache for negative-feedback queries (chat.py already short-circuits
+        # them, but defence in depth here too).
+        cached_plan: StructuredPlan | None = None
+        cached_hit_id: int | None = None
+        few_shot_plan: dict | None = None
+        if self.plan_cache and not is_negative_feedback(last_user_text):
+            tools_sig = self._tools_signature(tools)
+            categories = filter_options.get("categories", []) if filter_options else []
+            hit = await self.plan_cache.lookup(
+                user_context.user_id, last_user_text, tools_sig, categories
+            )
+            if hit:
+                entry_id, cached_text, plan_json, sim = hit
+                cat_ok = self._categories_match(
+                    last_user_text, cached_text,
+                    filter_options.get("categories", []) if filter_options else [],
+                )
+                intent_ok = self._intent_match(last_user_text, cached_text)
+                compat = cat_ok and intent_ok
+                log.info(
+                    "[CACHE] lookup sim=%.3f cat=%s intent=%s entry=%d",
+                    sim, cat_ok, intent_ok, entry_id,
+                )
+                if compat and sim >= _CACHE_TRUST_THRESHOLD:
+                    try:
+                        cached_plan = StructuredPlan.model_validate(plan_json)
+                        cached_hit_id = entry_id
+                        log.info("[CACHE] tier=skip entry=%d", entry_id)
+                    except Exception as e:
+                        log.warning("[CACHE] failed to deserialize entry %d: %r",
+                                    entry_id, e)
+                elif compat and sim >= _CACHE_HYBRID_THRESHOLD:
+                    few_shot_plan = plan_json
+                    log.info("[CACHE] tier=fewshot entry=%d", entry_id)
+
+        if cached_plan is not None:
+            # Tier 1 — trust cache, skip skeleton entirely.
+            plan = cached_plan
+            messages_for_skeleton = list(messages)
+        elif _is_obvious_search(last_user_text, hints):
+            # FAST-PATH: an unambiguous «show me X»-style search request can skip
+            # both decomposer and skeleton calls and execute apply_filters directly
+            # with deterministic args from hints. Saves 30-60s on warm CPU.
             plan = StructuredPlan(
                 intent=Intent.EXECUTE,
                 plan=[PlanStepV2(step_id="step_1", tool="apply_filters", args={})],
@@ -202,6 +320,7 @@ class Pipeline:
             plan = await planner.plan_skeleton(
                 messages_for_skeleton, session_context,
                 filter_options=filter_options, hints=hints,
+                few_shot_plan=few_shot_plan,
             )
 
         tool_results = []
@@ -244,6 +363,46 @@ class Pipeline:
             if isinstance(tr.result, dict) and "action" in tr.result:
                 action = tr.result
                 break
+
+        # PLAN CACHE STORE / RECORD: if the plan executed cleanly, either
+        # bump hit_count on the entry we reused, or persist a fresh entry
+        # for future similar queries. `last_cache_hit_id` is what chat.py
+        # reads on the NEXT turn for implicit-feedback attribution.
+        plan_success = (
+            plan.intent == Intent.EXECUTE
+            and plan.plan
+            and not issues
+            and all(
+                tr.error is None
+                and not (isinstance(tr.result, dict) and tr.result.get("error"))
+                for tr in tool_results
+            )
+        )
+        if self.plan_cache and plan_success:
+            if cached_hit_id is not None:
+                await self.plan_cache.record_hit(cached_hit_id)
+                session_context.last_cache_hit_id = cached_hit_id
+            elif not is_negative_feedback(last_user_text):
+                tools_sig = self._tools_signature(tools)
+                categories = filter_options.get("categories", []) if filter_options else []
+                stored_id = await self.plan_cache.store(
+                    user_context.user_id,
+                    last_user_text,
+                    plan.model_dump(mode="json"),
+                    tools_sig,
+                    categories,
+                )
+                if stored_id is not None:
+                    log.info(
+                        "[CACHE] stored entry=%d query=%r",
+                        stored_id, last_user_text[:60],
+                    )
+                session_context.last_cache_hit_id = stored_id
+            else:
+                session_context.last_cache_hit_id = None
+        else:
+            # Don't carry stale attribution to the next turn.
+            session_context.last_cache_hit_id = None
 
         return AgentResult(
             response=plan.user_message,

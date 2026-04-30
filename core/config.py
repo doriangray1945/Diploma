@@ -20,7 +20,12 @@ class CoreConfig(BaseModel):
     # Timeout for the schema planner LLM call (seconds)
     planner_schema_timeout: float = 120.0
     # --- Ollama runtime tuning ---
-    # How long Ollama keeps the model loaded in RAM after a request
-    keep_alive: str = "10m"
+    # How long Ollama keeps the model loaded in RAM after a request.
+    # Ollama API accepts: duration string ("10m", "24h") OR an int (seconds,
+    # negative = keep forever). String "-1" is rejected with HTTP 400 — must
+    # be int. -1 = never unload → eliminates the 60-90s cold-reload cost
+    # on the first query after long idle. Model occupies ~2GB RAM, fine for
+    # our 13GB host.
+    keep_alive: int | str = -1
     # LLM context window size (tokens)
     num_ctx: int = 4096
