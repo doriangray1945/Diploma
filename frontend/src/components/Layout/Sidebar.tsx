@@ -1,18 +1,29 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutGrid, Heart, ShoppingBag, MessageCircle, HelpCircle } from 'lucide-react';
+import { LayoutGrid, Heart, ShoppingBag, MessageCircle, HelpCircle, Shield } from 'lucide-react';
 import { useAuthStore, useFavoritesStore, useCartStore } from '../../stores';
 import clsx from 'clsx';
 
-const navItems = [
+type NavItem = {
+  to: string;
+  icon: typeof LayoutGrid;
+  label: string;
+  countKey?: 'favorites' | 'cart';
+  adminOnly?: boolean;
+};
+
+const navItems: NavItem[] = [
   { to: '/', icon: LayoutGrid, label: 'Каталог' },
-  { to: '/favorites', icon: Heart, label: 'Избранное', countKey: 'favorites' as const },
+  { to: '/favorites', icon: Heart, label: 'Избранное', countKey: 'favorites' },
   { to: '/orders', icon: ShoppingBag, label: 'Мои заказы' },
+  { to: '/admin', icon: Shield, label: 'Админка', adminOnly: true },
 ];
 
 export default function Sidebar() {
   const { user } = useAuthStore();
   const { favorites } = useFavoritesStore();
   const { items: cartItems } = useCartStore();
+
+  const visibleItems = navItems.filter((item) => !item.adminOnly || user?.is_admin);
 
   const getCounts = (key?: 'favorites' | 'cart') => {
     if (key === 'favorites') return favorites.length;
@@ -30,7 +41,7 @@ export default function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 py-4">
         <ul className="space-y-1 px-3">
-          {navItems.map((item) => {
+          {visibleItems.map((item) => {
             const count = item.countKey ? getCounts(item.countKey) : 0;
 
             return (

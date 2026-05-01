@@ -11,6 +11,17 @@ import FavoritesPage from './pages/FavoritesPage';
 import OrdersPage from './pages/OrdersPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import {
+  AdminDashboardPage,
+  AdminProductsPage,
+  AdminProductFormPage,
+  AdminCategoriesPage,
+  AdminOrdersPage,
+  AdminUsersPage,
+  AdminInventoryPage,
+} from './pages/admin';
+import RequireAdmin from './components/admin/RequireAdmin';
+import AdminLayout from './components/admin/AdminLayout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuthStore();
@@ -88,6 +99,23 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="admin"
+          element={
+            <RequireAdmin>
+              <AdminLayout />
+            </RequireAdmin>
+          }
+        >
+          <Route index element={<AdminDashboardPage />} />
+          <Route path="products" element={<AdminProductsPage />} />
+          <Route path="products/new" element={<AdminProductFormPage />} />
+          <Route path="products/:id/edit" element={<AdminProductFormPage />} />
+          <Route path="categories" element={<AdminCategoriesPage />} />
+          <Route path="orders" element={<AdminOrdersPage />} />
+          <Route path="users" element={<AdminUsersPage />} />
+          <Route path="inventory" element={<AdminInventoryPage />} />
+        </Route>
       </Route>
     </Routes>
   );

@@ -19,6 +19,8 @@ class UserLogin(BaseModel):
 class UserResponse(UserBase):
     id: int
     phone: str | None = None
+    is_admin: bool = False
+    is_superadmin: bool = False
     created_at: datetime
 
     class Config:

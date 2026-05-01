@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     OLLAMA_HOST: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "qwen2.5:3b"
 
+    # Seeded admin account (out-of-band privilege grant). If both are set and
+    # the user does not yet exist, lifespan creates them with is_admin=True.
+    ADMIN_EMAIL: str | None = None
+    ADMIN_PASSWORD: str | None = None
+
     class Config:
         env_file = ".env"
         case_sensitive = True

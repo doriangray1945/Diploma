@@ -26,11 +26,14 @@ async def register(
             detail="Email already registered"
         )
 
-    # Create user
+    # Create user. is_admin is hardcoded False here on purpose — the admin
+    # role can only be granted out-of-band (env-seed or another admin via
+    # /admin/users), never by the public registration endpoint.
     user = User(
         email=user_data.email,
         name=user_data.name,
-        password_hash=get_password_hash(user_data.password)
+        password_hash=get_password_hash(user_data.password),
+        is_admin=False,
     )
     db.add(user)
     await db.commit()

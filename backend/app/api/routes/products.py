@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 
 from app.core.database import get_db
-from app.models import Product, Favorite, User
+from app.models import Product, Favorite, User, Category
 from app.schemas import ProductResponse, ProductListResponse, CategoryResponse
 from app.api.deps import get_current_user_optional
 
@@ -127,31 +127,30 @@ async def get_products(
 async def get_categories(
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
-    # Get categories with counts
-    query = select(
-        Product.category,
-        func.count(Product.id).label("count")
-    ).group_by(Product.category)
+    # Pull canonical list from the categories table; counts and subcategories
+    # come from products. Categories without products show count=0.
+    cats = (await db.execute(
+        select(Category).order_by(Category.sort_order, Category.name)
+    )).scalars().all()
 
-    result = await db.execute(query)
-    categories_data = result.all()
+    counts_rows = (await db.execute(
+        select(Product.category, func.count(Product.id)).group_by(Product.category)
+    )).all()
+    counts = {row[0]: int(row[1]) for row in counts_rows}
 
-    categories = []
-    for cat_name, count in categories_data:
-        # Get subcategories
-        sub_query = select(Product.subcategory).where(
-            Product.category == cat_name,
-            Product.subcategory.isnot(None)
-        ).distinct()
-        sub_result = await db.execute(sub_query)
+    categories: list[CategoryResponse] = []
+    for cat in cats:
+        sub_result = await db.execute(
+            select(Product.subcategory)
+            .where(Product.category == cat.name, Product.subcategory.isnot(None))
+            .distinct()
+        )
         subcategories = [s for s in sub_result.scalars().all() if s]
-
         categories.append(CategoryResponse(
-            name=cat_name,
-            count=count,
-            subcategories=subcategories
+            name=cat.name,
+            count=counts.get(cat.name, 0),
+            subcategories=subcategories,
         ))
-
     return categories
 
 

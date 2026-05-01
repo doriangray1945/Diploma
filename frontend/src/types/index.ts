@@ -3,6 +3,8 @@ export interface User {
   email: string;
   name: string;
   phone?: string;
+  is_admin: boolean;
+  is_superadmin: boolean;
   created_at: string;
 }
 
