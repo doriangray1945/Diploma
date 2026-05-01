@@ -1,7 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutGrid, Heart, ShoppingBag, MessageCircle, HelpCircle, Shield } from 'lucide-react';
+import { LayoutGrid, Heart, ShoppingBag, MessageCircle, HelpCircle, Shield, X } from 'lucide-react';
 import { useAuthStore, useFavoritesStore, useCartStore } from '../../stores';
 import clsx from 'clsx';
+
+interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
 
 type NavItem = {
   to: string;
@@ -18,7 +23,7 @@ const navItems: NavItem[] = [
   { to: '/admin', icon: Shield, label: 'Админка', adminOnly: true },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { user } = useAuthStore();
   const { favorites } = useFavoritesStore();
   const { items: cartItems } = useCartStore();
@@ -32,10 +37,23 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-200 flex flex-col">
-      {/* Logo */}
-      <div className="h-16 flex items-center px-6 border-b border-slate-200">
+    <aside
+      className={clsx(
+        'fixed lg:static inset-y-0 left-0 z-40 w-64 bg-white border-r border-slate-200 flex flex-col transform transition-transform duration-200 ease-out',
+        'lg:transform-none',
+        isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      )}
+    >
+      {/* Logo + close button (mobile) */}
+      <div className="h-16 flex items-center justify-between px-6 border-b border-slate-200">
         <span className="text-xl font-bold text-slate-900">NF</span>
+        <button
+          onClick={onClose}
+          className="lg:hidden p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded"
+          aria-label="Закрыть меню"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Navigation */}

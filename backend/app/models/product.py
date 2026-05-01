@@ -33,6 +33,11 @@ class Product(Base):
     is_popular: Mapped[bool] = mapped_column(Boolean, default=False)
     is_new: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # 3D-model URLs for AR / 3D-viewer on product page. Both nullable —
+    # only products with a model show the viewer block.
+    model_glb_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    model_usdz_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
     embedding = mapped_column(Vector(768), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

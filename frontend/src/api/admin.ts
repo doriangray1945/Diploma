@@ -61,6 +61,8 @@ export interface AdminProduct {
   reviews_count: number;
   is_popular: boolean;
   is_new: boolean;
+  model_glb_url?: string | null;
+  model_usdz_url?: string | null;
   created_at: string;
   updated_at: string;
 }

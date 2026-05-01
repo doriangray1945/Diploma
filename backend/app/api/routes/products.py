@@ -107,6 +107,8 @@ async def get_products(
             "reviews_count": product.reviews_count,
             "is_popular": product.is_popular,
             "is_new": product.is_new,
+            "model_glb_url": product.model_glb_url,
+            "model_usdz_url": product.model_usdz_url,
             "created_at": product.created_at,
             "is_favorite": product.id in favorite_product_ids
         }
@@ -195,6 +197,8 @@ async def get_product(
         reviews_count=product.reviews_count,
         is_popular=product.is_popular,
         is_new=product.is_new,
+        model_glb_url=product.model_glb_url,
+        model_usdz_url=product.model_usdz_url,
         created_at=product.created_at,
         is_favorite=is_favorite
     )

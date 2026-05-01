@@ -225,6 +225,34 @@ export default function ProductPage() {
           </div>
         </div>
 
+        {/* 3D / AR — only if model URLs present */}
+        {(product.model_glb_url || product.model_usdz_url) && (
+          <div className="border-t border-slate-200 p-8">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-slate-900">3D-модель</h3>
+              <p className="text-xs text-slate-500 hidden lg:block">
+                Крутите модель мышкой
+              </p>
+              <p className="text-xs text-slate-500 lg:hidden">
+                Тапните «AR» — товар встанет в вашей комнате
+              </p>
+            </div>
+            <div className="w-full h-[400px] md:h-[500px] bg-slate-50 rounded-xl overflow-hidden">
+              <model-viewer
+                src={product.model_glb_url || undefined}
+                ios-src={product.model_usdz_url || undefined}
+                ar
+                ar-modes="webxr scene-viewer quick-look"
+                camera-controls
+                auto-rotate
+                shadow-intensity="1"
+                alt={product.name}
+                style={{ width: '100%', height: '100%', backgroundColor: '#f8fafc' }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Description */}
         <div className="border-t border-slate-200 p-8">
           <h3 className="font-semibold text-slate-900 mb-4">Описание</h3>

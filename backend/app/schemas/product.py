@@ -15,6 +15,8 @@ class ProductBase(BaseModel):
     color: str | None = None
     in_stock: bool = True
     stock_quantity: int = 0
+    model_glb_url: str | None = None
+    model_usdz_url: str | None = None
 
 
 class ProductResponse(ProductBase):

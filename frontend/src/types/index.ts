@@ -26,6 +26,8 @@ export interface Product {
   reviews_count: number;
   is_popular: boolean;
   is_new: boolean;
+  model_glb_url?: string | null;
+  model_usdz_url?: string | null;
   created_at: string;
   is_favorite: boolean;
 }

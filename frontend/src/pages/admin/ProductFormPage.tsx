@@ -23,6 +23,8 @@ const empty: AdminProductCreate = {
   stock_quantity: 0,
   is_popular: false,
   is_new: false,
+  model_glb_url: null,
+  model_usdz_url: null,
 };
 
 export default function ProductFormPage() {
@@ -240,6 +242,32 @@ export default function ProductFormPage() {
               <Plus className="w-4 h-4" /> Добавить картинку
             </button>
           </div>
+        </Field>
+
+        <Field label="3D-модель GLB (для десктопа и Android AR)" full>
+          <input
+            type="text"
+            value={form.model_glb_url ?? ''}
+            onChange={(e) => update('model_glb_url', e.target.value || null)}
+            className="input"
+            placeholder="/models/sofa.glb"
+          />
+          <p className="text-xs text-slate-500 mt-1">
+            Положи файл в <code>frontend/public/models/</code> и впиши путь, начиная с <code>/models/</code>.
+          </p>
+        </Field>
+
+        <Field label="3D-модель USDZ (для iOS AR Quick Look)" full>
+          <input
+            type="text"
+            value={form.model_usdz_url ?? ''}
+            onChange={(e) => update('model_usdz_url', e.target.value || null)}
+            className="input"
+            placeholder="/models/sofa.usdz"
+          />
+          <p className="text-xs text-slate-500 mt-1">
+            На iPhone Safari эта модель откроется в нативном AR (с использованием LiDAR).
+          </p>
         </Field>
 
         <div className="flex items-center gap-6 lg:col-span-2 pt-2">

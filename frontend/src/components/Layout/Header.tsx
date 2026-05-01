@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, LogOut, X } from 'lucide-react';
+import { Search, ShoppingCart, User, LogOut, X, Menu } from 'lucide-react';
 import { useAuthStore, useCartStore, useProductsStore } from '../../stores';
 
-export default function Header() {
+interface HeaderProps {
+  onMenuClick: () => void;
+}
+
+export default function Header({ onMenuClick }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const { user, logout } = useAuthStore();
   const { items: cartItems } = useCartStore();
@@ -29,7 +33,16 @@ export default function Header() {
   };
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center px-6 gap-4">
+    <header className="h-16 bg-white border-b border-slate-200 flex items-center px-4 sm:px-6 gap-3">
+      {/* Hamburger (mobile only) */}
+      <button
+        onClick={onMenuClick}
+        className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+        aria-label="Открыть меню"
+      >
+        <Menu className="w-5 h-5" />
+      </button>
+
       {/* Search */}
       <form onSubmit={handleSearch} className="flex-1 max-w-xl">
         <div className="relative">

@@ -33,6 +33,12 @@ async def apply_inline_migrations():
             "ALTER TABLE users "
             "ADD COLUMN IF NOT EXISTS is_superadmin BOOLEAN NOT NULL DEFAULT FALSE"
         ))
+        await conn.execute(text(
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS model_glb_url VARCHAR(500)"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS model_usdz_url VARCHAR(500)"
+        ))
         # Bootstrap categories table from distinct product.category values so
         # the catalog stays unchanged for users while the admin panel gains a
         # canonical, editable list. Idempotent.

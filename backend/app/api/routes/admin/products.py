@@ -34,6 +34,8 @@ class AdminProductBase(BaseModel):
     stock_quantity: int = Field(default=0, ge=0)
     is_popular: bool = False
     is_new: bool = False
+    model_glb_url: str | None = Field(default=None, max_length=500)
+    model_usdz_url: str | None = Field(default=None, max_length=500)
 
 
 class AdminProductCreate(AdminProductBase):
@@ -55,6 +57,8 @@ class AdminProductUpdate(BaseModel):
     stock_quantity: int | None = Field(default=None, ge=0)
     is_popular: bool | None = None
     is_new: bool | None = None
+    model_glb_url: str | None = Field(default=None, max_length=500)
+    model_usdz_url: str | None = Field(default=None, max_length=500)
 
 
 class AdminProductResponse(BaseModel):
@@ -75,6 +79,8 @@ class AdminProductResponse(BaseModel):
     reviews_count: int
     is_popular: bool
     is_new: bool
+    model_glb_url: str | None = None
+    model_usdz_url: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -98,6 +104,7 @@ def _to_response(p: Product) -> AdminProductResponse:
         in_stock=p.in_stock, stock_quantity=p.stock_quantity,
         rating=float(p.rating or 0), reviews_count=p.reviews_count or 0,
         is_popular=p.is_popular, is_new=p.is_new,
+        model_glb_url=p.model_glb_url, model_usdz_url=p.model_usdz_url,
         created_at=p.created_at, updated_at=p.updated_at,
     )
 
