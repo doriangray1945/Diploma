@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Body, Depends, Query
 from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +9,8 @@ from app.api.deps import require_admin
 from app.core.database import get_db
 from app.models import Order, OrderItem, Product, User
 from app.schemas.admin import (
+    AnalyticsBucket,
+    AnalyticsQuery,
     CategoryBreakdown,
     InventorySummary,
     LowStockProduct,
@@ -16,6 +18,7 @@ from app.schemas.admin import (
     StatsOverview,
     TopProduct,
 )
+from app.services import analytics
 
 router = APIRouter(dependencies=[Depends(require_admin)])
 
@@ -192,4 +195,26 @@ async def inventory_summary(
         in_stock=in_stock,
         out_of_stock=total - in_stock,
         low_stock_count=low,
+    )
+
+
+@router.post("/query", response_model=list[AnalyticsBucket])
+async def query_analytics(
+    payload: AnalyticsQuery,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Flexible sales analytics — single endpoint for chat tool `get_sales_analytics`.
+
+    Replaces (and supplements) the static /overview, /top-products, /category-breakdown
+    by combining period × group_by × metric × sort × limit × filter."""
+    return await analytics.query(
+        db,
+        period=payload.period,
+        group_by=payload.group_by,
+        metric=payload.metric,
+        sort=payload.sort,
+        limit=payload.limit,
+        from_date=payload.from_date,
+        to_date=payload.to_date,
+        filter=payload.filter,
     )

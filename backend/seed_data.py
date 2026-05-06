@@ -1,5 +1,4 @@
 import asyncio
-import httpx
 from sqlalchemy import select
 from app.core.database import async_session_maker, engine, Base, init_pgvector
 from app.core.config import settings
@@ -98,11 +97,12 @@ FURNITURE_DATA = [
     },
     {
         "name": "Egg Chair",
-        "description": "Дизайнерское кресло-яйцо. Культовая модель для стильного интерьера. Поворотное основание.",
+        "description": "Дизайнерское кресло-яйцо. Культовая модель для стильного интерьера. Поворотное основание. Доступен 3D-просмотр и AR-демонстрация.",
         "price": 79990.00,
         "category": "Кресла",
         "subcategory": "Дизайнерские кресла",
         "images": ["/images/chair-egg-1.jpg"],
+        "model_glb_url": "/models/chair.glb",
         "dimensions": "80x75x110",
         "materials": "Кашемир, алюминий",
         "color": "Красный",
@@ -329,33 +329,14 @@ FURNITURE_DATA = [
 ]
 
 
-async def generate_embedding(text: str) -> list[float] | None:
-    """Generate embedding via Ollama."""
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{settings.OLLAMA_HOST}/api/embeddings",
-                json={"model": "nomic-embed-text", "prompt": text},
-            )
-            response.raise_for_status()
-            return response.json()["embedding"]
-    except Exception as e:
-        print(f"  Warning: could not generate embedding: {e}")
-        return None
-
-
-def build_product_text(data: dict) -> str:
-    """Build a searchable text representation of a product for embedding."""
-    parts = [data["name"], data.get("description", ""), data.get("category", "")]
-    if data.get("color"):
-        parts.append(f"цвет: {data['color']}")
-    if data.get("materials"):
-        parts.append(f"материалы: {data['materials']}")
-    return " ".join(parts)
-
-
 async def seed_database():
-    """Seed the database with initial furniture data."""
+    """Seed the database with initial furniture data.
+
+    Search is now backed by BM25 (pg_search) — the index is built on the
+    raw text columns, no embedding needed. We still leave Product.embedding
+    nullable in the schema; admin CRUD populates it on save in case we
+    ever want to layer hybrid lexical+vector retrieval later.
+    """
     await init_pgvector()
 
     async with engine.begin() as conn:
@@ -368,17 +349,10 @@ async def seed_database():
             print("Database already has products. Skipping seed.")
             return
 
-        # Add products with embeddings
         for i, product_data in enumerate(FURNITURE_DATA):
-            text = build_product_text(product_data)
-            print(f"  [{i+1}/{len(FURNITURE_DATA)}] {product_data['name']}...", end=" ")
-
-            embedding = await generate_embedding(text)
-            product = Product(**product_data, embedding=embedding)
+            print(f"  [{i+1}/{len(FURNITURE_DATA)}] {product_data['name']}")
+            product = Product(**product_data)
             session.add(product)
-
-            status = "with embedding" if embedding else "without embedding"
-            print(status)
 
         await session.commit()
         print(f"Successfully seeded {len(FURNITURE_DATA)} products!")

@@ -4,15 +4,21 @@ from core.config import CoreConfig
 from core.llm.ollama import OllamaProvider
 from core.pipeline import Pipeline
 from core.schemas import AgentResult, Message, Role, SessionContext, UserContext
+from core.tools.admin_bulk import (
+    GetSalesAnalyticsTool,
+    UpdatePricesTool,
+    UpdateStockTool,
+)
 from core.tools.base import ToolRegistry
-from core.tools.catalog import GetProductDetailsTool, ApplyFiltersTool
-from core.tools.cart import AddToCartTool, GetCartTool, ClearCartTool
-from core.tools.order import CreateOrderTool, ModifyOrderTool
-from core.tools.favorites import GetFavoritesTool, AddToFavoritesTool, RemoveFromFavoritesTool, ClearFavoritesTool
-from core.tools.admin import AddProductTool, UpdateProductTool, DeleteProductTool
+from core.tools.cart import AddToCartTool, ClearCartTool, RemoveFromCartTool
+from core.tools.catalog import ApplyFiltersTool
+from core.tools.favorites import (
+    AddToFavoritesTool,
+    ClearFavoritesTool,
+    RemoveFromFavoritesTool,
+)
 
 from app.adapters.data_provider import PostgresDataProvider
-from app.adapters.plan_cache_adapter import PlanCacheAdapter
 from app.core.config import settings
 
 
@@ -28,26 +34,30 @@ def _build_config() -> CoreConfig:
 def _build_tools(
     provider: PostgresDataProvider, role: str
 ) -> ToolRegistry:
+    """Build the tool registry visible to the chat LLM.
+
+    User role (7 tools): catalog filtering + favorites + cart.
+    Admin role (10 tools): user tools + bulk-stock/prices/analytics.
+
+    Schemas are stable per fine-tune. Adding NEW tool semantics requires
+    warm-start retrain; renaming fields/values does not (schema-grounded).
+    """
     registry = ToolRegistry()
 
-    # User tools — always available
+    # User tools — visible to all chat users
     registry.register(ApplyFiltersTool(provider))
-    registry.register(GetProductDetailsTool(provider))
-    registry.register(AddToCartTool(provider))
-    registry.register(GetCartTool(provider))
-    registry.register(ClearCartTool(provider))
-    registry.register(CreateOrderTool(provider))
-    registry.register(ModifyOrderTool(provider))
-    registry.register(GetFavoritesTool(provider))
     registry.register(AddToFavoritesTool(provider))
     registry.register(RemoveFromFavoritesTool(provider))
     registry.register(ClearFavoritesTool(provider))
+    registry.register(AddToCartTool(provider))
+    registry.register(RemoveFromCartTool(provider))
+    registry.register(ClearCartTool(provider))
 
-    # Admin tools — only for admin role
+    # Admin tools — only for admin role; bulk operations + flexible analytics
     if role == "admin":
-        registry.register(AddProductTool(provider))
-        registry.register(UpdateProductTool(provider))
-        registry.register(DeleteProductTool(provider))
+        registry.register(UpdateStockTool(provider))
+        registry.register(UpdatePricesTool(provider))
+        registry.register(GetSalesAnalyticsTool(provider))
 
     return registry
 
@@ -66,19 +76,10 @@ async def process_message(
     the context changes back to the DB.
     """
     provider = PostgresDataProvider(db)
-
-    # Fetch filter options via cached DataProvider method (avoids raw SQL each time)
-    filter_opts = await provider.get_filter_options()
-    categories = filter_opts["categories"]
-    colors = filter_opts.get("colors", [])
-    price_range = filter_opts.get("price_range", {})
-
     config = _build_config()
     llm = OllamaProvider(config)
     tools = _build_tools(provider, role)
-
-    plan_cache = PlanCacheAdapter(db)
-    pipeline = Pipeline(llm, provider, config, plan_cache=plan_cache)
+    pipeline = Pipeline(llm, provider, config)
 
     session_context = session_context or SessionContext()
 

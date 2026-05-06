@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { SlidersHorizontal, X } from 'lucide-react';
 import { useProductsStore } from '../../stores';
+import { productsApi } from '../../api/products';
+import type { FilterOptions } from '../../types';
 import clsx from 'clsx';
 
 export default function CatalogFilters() {
   const [showFilters, setShowFilters] = useState(false);
+  const [filterOpts, setFilterOpts] = useState<FilterOptions | null>(null);
   const { filters, setFilters, clearFilters, categories } = useProductsStore();
   const prevFiltersRef = useRef(filters);
 
@@ -13,12 +16,19 @@ export default function CatalogFilters() {
     const prev = prevFiltersRef.current;
     const hasNewFilters = filters.category !== prev.category
       || filters.min_price !== prev.min_price
-      || filters.max_price !== prev.max_price;
+      || filters.max_price !== prev.max_price
+      || JSON.stringify(filters.color) !== JSON.stringify(prev.color)
+      || JSON.stringify(filters.material) !== JSON.stringify(prev.material);
     if (hasNewFilters) {
       setShowFilters(true);
     }
     prevFiltersRef.current = filters;
   }, [filters]);
+
+  // Load enum values for material/color from backend (one-shot)
+  useEffect(() => {
+    productsApi.getFilterOptions().then(setFilterOpts).catch(() => {/* swallow */});
+  }, []);
 
   const tabs = [
     { key: 'popular', label: 'Популярное', filter: { is_popular: true } },
@@ -51,7 +61,30 @@ export default function CatalogFilters() {
     }
   };
 
-  const hasActiveFilters = filters.category || filters.min_price || filters.max_price || filters.search;
+  const toggleArrayValue = (
+    field: 'color' | 'material',
+    value: string,
+  ) => {
+    const current = filters[field] || [];
+    const next = current.includes(value)
+      ? current.filter((v) => v !== value)
+      : [...current, value];
+    const newFilters = { ...filters };
+    if (next.length === 0) {
+      delete newFilters[field];
+    } else {
+      newFilters[field] = next;
+    }
+    setFilters(newFilters);
+  };
+
+  const hasActiveFilters =
+    filters.category
+    || filters.min_price
+    || filters.max_price
+    || filters.search
+    || (filters.color && filters.color.length > 0)
+    || (filters.material && filters.material.length > 0);
 
   return (
     <div className="mb-6">
@@ -121,6 +154,58 @@ export default function CatalogFilters() {
               ))}
             </div>
           </div>
+
+          {/* Material — multi-select */}
+          {filterOpts && filterOpts.materials.length > 0 && (
+            <div className="mb-4">
+              <h4 className="text-sm font-medium text-slate-700 mb-2">Материалы</h4>
+              <div className="flex flex-wrap gap-2">
+                {filterOpts.materials.map((m) => {
+                  const selected = (filters.material || []).includes(m);
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => toggleArrayValue('material', m)}
+                      className={clsx(
+                        'px-3 py-1.5 rounded-full text-sm transition-colors capitalize',
+                        selected
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      )}
+                    >
+                      {m}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Color — multi-select */}
+          {filterOpts && filterOpts.colors.length > 0 && (
+            <div className="mb-4">
+              <h4 className="text-sm font-medium text-slate-700 mb-2">Цвета</h4>
+              <div className="flex flex-wrap gap-2">
+                {filterOpts.colors.map((c) => {
+                  const selected = (filters.color || []).includes(c);
+                  return (
+                    <button
+                      key={c}
+                      onClick={() => toggleArrayValue('color', c)}
+                      className={clsx(
+                        'px-3 py-1.5 rounded-full text-sm transition-colors',
+                        selected
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      )}
+                    >
+                      {c}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Price range */}
           <div>

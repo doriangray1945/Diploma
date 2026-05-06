@@ -14,6 +14,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+import pymorphy3
+
 
 @dataclass
 class ParseHints:
@@ -23,8 +25,47 @@ class ParseHints:
     quantifier: str | None = None       # "all" | "remaining" | "first_N" | "last_N"
     quantifier_n: int | None = None
     category: str | None = None         # canonical from filter_options.categories
-    search: str | None = None           # adjective qualifier near a category
     triggers_reset: bool = False
+    # NOTE: `search` is no longer a parser concern. It used to be filled from
+    # a hardcoded list of stylistic qualifiers (SEARCH_QUALIFIERS) which
+    # silently dropped any unknown adjective. Now `search` is a free-form
+    # string filled by the LLM args-filler from the user's full text, then
+    # matched semantically by pgvector cosine_distance against the product
+    # embedding (which encodes name + description + materials + color).
+
+
+# ── Morphological gating layer (POS-only) ─────────────────────────────
+#
+# Tier 2 of the neuro-symbolic cascade: after the deterministic regex/dict
+# parser has extracted what it can (categories, prices, qty), the args
+# filler asks `is_descriptor_candidate` whether a residual token is an
+# open-class content word — i.e. plausibly a product descriptor worth
+# feeding to the LLM. Closed-class function vocabulary (verbs, prepositions,
+# pronouns, particles, conjunctions, interjections) is filtered out by
+# pymorphy3 morphology, no hardcoded list.
+#
+# Per-step decomposition (see Decomposer + PlanExecutor) ensures each
+# args-filler call only sees its own sub-action text — that's what keeps
+# the LLM agent fully agnostic to catalog content. The gate just decides
+# whether the LLM has anything to extract; it does not validate against
+# what the catalog contains.
+
+_MORPH = pymorphy3.MorphAnalyzer()
+_OPEN_CLASS_POS = frozenset({"NOUN", "ADJF", "ADJS", "PRTF", "PRTS"})
+
+
+def is_descriptor_candidate(token: str) -> bool:
+    """True if `token` is an open-class content word (NOUN, ADJF, ADJS,
+    PRTF, PRTS) per pymorphy3. Pure linguistic check — no coupling to
+    the catalog. Typos are handled by pymorphy3's suffix-based OOV
+    prediction («посаветуй» → still VERB → False).
+    """
+    if not token or len(token) < 2:
+        return False
+    parses = _MORPH.parse(token.lower())
+    if not parses:
+        return False
+    return parses[0].tag.POS in _OPEN_CLASS_POS
 
 
 # Russian diminutive/inflection prefixes per canonical category.
@@ -37,25 +78,6 @@ DIMINUTIVES: dict[str, list[str]] = {
     "Стулья":  ["стул", "стульчик"],
     "Шкафы":   ["шкаф", "шкафчик"],
     "Кровати": ["кроват", "кроватк"],
-}
-
-
-# Common Russian adjective qualifiers used as `search` refinement inside a
-# category (e.g. «детские кровати» → search="детская"). Map: canonical form
-# → list of stems (≥4 chars) to match any inflection.
-# Canonical form is what we put in args.search.
-SEARCH_QUALIFIERS: dict[str, list[str]] = {
-    "детская":   ["детск"],
-    "офисный":   ["офисн"],
-    "складной":  ["складн"],
-    "угловой":   ["углов"],
-    "деревянный":["деревянн"],
-    "кожаный":   ["кожан"],
-    "лофт":      ["лофт"],
-    "классический":["классическ", "классич"],
-    "современный":["современн"],
-    "минималистичный":["минималистич", "минимал"],
-    "скандинавский":["скандинавск", "скандинав"],
 }
 
 
@@ -154,24 +176,6 @@ def _extract_quantifier(text: str) -> tuple[str | None, int | None]:
     return None, None
 
 
-def detect_search_qualifier(text: str) -> str | None:
-    """Find a stylistic/usage qualifier (детская/офисный/угловой...) in text.
-
-    Returns the canonical form (the dict key) of the first matching qualifier.
-    Tokenize on \\W+, lowercase; a token is a match if it starts with any
-    stem of length ≥ 4. First match wins.
-    """
-    if not text:
-        return None
-    tokens = [t.lower() for t in re.split(r"\W+", text) if t]
-    for token in tokens:
-        for canonical, stems in SEARCH_QUALIFIERS.items():
-            for stem in stems:
-                if len(stem) >= 4 and token.startswith(stem):
-                    return canonical
-    return None
-
-
 def normalize_category(text: str, categories: list[str]) -> str | None:
     """Find a canonical category by matching tokens against DIMINUTIVES stems.
 
@@ -221,15 +225,20 @@ def normalize_for_embedding(text: str, categories: list[str] | None = None) -> s
     """Strip values that should NOT influence semantic plan retrieval.
 
     The plan cache asks: «have we seen a query with the same INTENT before?»
-    That intent is encoded by action verbs (найди / положи / удали), target
-    words (корзина / избранное), and grammar of the request. Specific values
-    — numbers, category names, search qualifiers — go through the parser
-    into args, NOT into the cache key.
+    Intent is encoded by action verbs (найди / положи / удали), target words
+    (корзина / избранное), and grammar of the request. Specific values —
+    numbers, category names — go through the parser into args, NOT into the
+    cache key, so we strip them from the embedded text.
 
     Without normalization, «найди диваны до 70000» and «найди диваны до
-    90000» get embedding similarity ~0.89 and miss the trust threshold,
-    even though they want the same plan. After normalization both become
-    «найди до» → identical embedding → cache hit.
+    90000» get distinct embeddings and miss the trust threshold, even
+    though they want the same plan. After normalization both become «найди
+    до» → identical embedding → cache hit.
+
+    Stylistic qualifiers («уютные», «детские», «лофт») are NOT stripped —
+    they signal genuinely different user intents («покажи уютные диваны»
+    and «покажи детские диваны» should NOT collide in cache, even after
+    semantic search swallows them downstream).
 
     Note: category match guard (`Pipeline._categories_match`) and intent
     match guard (`Pipeline._intent_match`) still run on the RAW texts, so
@@ -247,11 +256,6 @@ def normalize_for_embedding(text: str, categories: list[str] | None = None) -> s
     for stems in DIMINUTIVES.values():
         for stem in stems:
             if len(stem) >= 5:
-                n = re.sub(rf"\b{re.escape(stem)}\w*\b", " ", n)
-    # Strip search-qualifier stems (детск, офисн, складн, угловой, ...)
-    for stems in SEARCH_QUALIFIERS.values():
-        for stem in stems:
-            if len(stem) >= 4:
                 n = re.sub(rf"\b{re.escape(stem)}\w*\b", " ", n)
     # Collapse whitespace
     n = re.sub(r"\s+", " ", n).strip()
@@ -275,7 +279,6 @@ def parse_user_text(text: str, categories: list[str]) -> ParseHints:
     qty = _extract_quantity(text)
     quant, n = _extract_quantifier(text)
     cat = normalize_category(text, categories)
-    search = detect_search_qualifier(text)
 
     triggers_reset = bool(cat) or (max_p is not None) or (min_p is not None)
 
@@ -286,7 +289,6 @@ def parse_user_text(text: str, categories: list[str]) -> ParseHints:
         quantifier=quant,
         quantifier_n=n,
         category=cat,
-        search=search,
         triggers_reset=triggers_reset,
     )
 

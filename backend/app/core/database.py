@@ -8,9 +8,16 @@ engine = create_async_engine(settings.DATABASE_URL, echo=True)
 
 
 async def init_pgvector():
-    """Enable pgvector extension in PostgreSQL."""
+    """Enable pgvector + pg_search extensions in PostgreSQL.
+
+    pgvector: used by plan_cache for semantic plan retrieval and (still
+        present, currently dormant) by Product.embedding.
+    pg_search: BM25 full-text search engine (ParadeDB / Tantivy) used for
+        the catalog search UI and the apply_filters chat tool.
+    """
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_search"))
 
 
 async def apply_inline_migrations():
@@ -39,6 +46,52 @@ async def apply_inline_migrations():
         await conn.execute(text(
             "ALTER TABLE products ADD COLUMN IF NOT EXISTS model_usdz_url VARCHAR(500)"
         ))
+        # Switch from nomic-embed-text (dim=768) to bge-m3 (dim=1024). Old
+        # vectors are incompatible after model swap. Run the destructive
+        # ALTER ... USING NULL only when the column is still at 768; once
+        # bumped to 1024 the block becomes a no-op so subsequent restarts
+        # don't wipe re-computed embeddings.
+        await conn.execute(text("""
+            DO $do$
+            DECLARE current_dim integer;
+            BEGIN
+                SELECT atttypmod INTO current_dim FROM pg_attribute
+                WHERE attrelid = 'products'::regclass AND attname = 'embedding';
+                IF current_dim IS NOT NULL AND current_dim <> 1024 THEN
+                    ALTER TABLE products ALTER COLUMN embedding TYPE vector(1024) USING NULL;
+                END IF;
+                SELECT atttypmod INTO current_dim FROM pg_attribute
+                WHERE attrelid = 'plan_cache_entries'::regclass AND attname = 'query_embedding';
+                IF current_dim IS NOT NULL AND current_dim <> 1024 THEN
+                    ALTER TABLE plan_cache_entries ALTER COLUMN query_embedding TYPE vector(1024)
+                        USING ARRAY_FILL(0::real, ARRAY[1024])::vector;
+                    DELETE FROM plan_cache_entries;
+                END IF;
+            END $do$;
+        """))
+        # BM25 full-text index over searchable product fields. pg_search
+        # builds a Tantivy index covering name + description + category +
+        # subcategory + materials + color, with the Snowball Russian
+        # stemmer applied to each — so «офисный»/«офисное», «детская»/
+        # «детский», «кожаный»/«кожаное» collapse to one stem in both
+        # the index and the query, and `apply_search_filter` can rank
+        # any inflected form. Queried via the `field @@@ 'text'` operator
+        # and ranked by `paradedb.score(id) DESC`. Idempotent.
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS products_bm25_idx ON products
+            USING bm25 (id, name, description, category, subcategory, materials, color)
+            WITH (
+                key_field = 'id',
+                text_fields = '{
+                    "name":        {"tokenizer": {"type": "default", "stemmer": "Russian"}},
+                    "description": {"tokenizer": {"type": "default", "stemmer": "Russian"}},
+                    "category":    {"tokenizer": {"type": "default", "stemmer": "Russian"}},
+                    "subcategory": {"tokenizer": {"type": "default", "stemmer": "Russian"}},
+                    "materials":   {"tokenizer": {"type": "default", "stemmer": "Russian"}},
+                    "color":       {"tokenizer": {"type": "default", "stemmer": "Russian"}}
+                }'
+            )
+        """))
         # Bootstrap categories table from distinct product.category values so
         # the catalog stays unchanged for users while the admin panel gains a
         # canonical, editable list. Idempotent.

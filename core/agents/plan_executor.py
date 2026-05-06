@@ -1,19 +1,17 @@
 """PlanExecutor — runs a list of PlanStepV2.
 
-In the hybrid 2-step pipeline, args for each step are filled by ArgsFiller
-AFTER the previous step has executed (so SessionContext is current). Then
-hints are post-merged for double-defence and Python validation runs before
-the tool is invoked. consumed_ids accumulates across steps for «оставшиеся»
-semantics.
+The fine-tuned model emits args inline; PlanExecutor honors `step.args`
+as-is (via `_NoOpArgsFiller.fill() → {}`) and merges ParseHints over the
+top for numeric corrections and quantifier resolution. consumed_ids
+accumulates across steps for «оставшиеся» semantics.
 """
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Protocol
 
-from core.agents.args_filler import ArgsFiller
 from core.agents.refs import RefError, _walk_path
-from core.parsing import ParseHints, apply_quantifier
+from core.parsing import ParseHints, apply_quantifier, parse_user_text
 from core.schemas import PlanStepV2, SessionContext, ToolResult, ValidationIssue
 from core.tools.base import ToolRegistry
 
@@ -29,8 +27,13 @@ CONSUMING_TOOLS = {"add_to_cart", "add_to_favorites"}
 PRODUCT_ID_TOOLS = {"add_to_cart", "add_to_favorites", "remove_from_favorites"}
 
 
+class _ArgsFillerLike(Protocol):
+    """Minimal protocol — Pipeline passes _NoOpArgsFiller (returns {})."""
+    async def fill(self, *args, **kwargs) -> dict: ...
+
+
 class PlanExecutor:
-    def __init__(self, tools: ToolRegistry, args_filler: ArgsFiller):
+    def __init__(self, tools: ToolRegistry, args_filler: _ArgsFillerLike):
         self.tools = tools
         self.args_filler = args_filler
 
@@ -41,29 +44,66 @@ class PlanExecutor:
         user_id: int,
         hints: ParseHints | None = None,
         filter_options: dict[str, Any] | None = None,
-        last_user_text: str = "",
+        step_texts: list[str] | None = None,
+        fallback_text: str = "",
     ) -> tuple[
         dict[str, dict[str, Any]],
         list[ToolResult],
         list[ValidationIssue],
     ]:
-        """Execute steps; return (step_results_by_id, tool_results, validation_issues)."""
+        """Execute steps; return (step_results_by_id, tool_results, validation_issues).
+
+        `step_texts` carries the per-step decomposition produced by the
+        Decomposer (one entry per plan step, ideally). When the decomposer
+        was skipped or returned fewer items than the plan length, missing
+        entries fall back to `fallback_text` (the original user message).
+        Each step's args-filler then sees ONLY its own sub-action — the
+        single biggest cause of LLM dump-into-search is that the model
+        used to receive the full multi-action query for every step.
+        """
         step_results: dict[str, dict[str, Any]] = {}
         tool_results: list[ToolResult] = []
         issues: list[ValidationIssue] = []
         consumed_ids: set[int] = set()
+        categories = (filter_options or {}).get("categories", []) if filter_options else []
 
-        for step in plan:
+        for step_idx, step in enumerate(plan):
+            # Per-step text + per-step parser hints. When step_texts is
+            # absent or shorter than the plan, fall back to the whole
+            # message so behaviour stays graceful.
+            step_text = (
+                step_texts[step_idx]
+                if step_texts and step_idx < len(step_texts)
+                else fallback_text
+            )
+            if step_texts and step_idx < len(step_texts):
+                step_hints = parse_user_text(step_text, categories)
+                # Cross-step quantifier/quantity stay global. The
+                # decomposer routinely splits «все диваны → корзина по
+                # 9» into «найди диваны / положи в корзину по 9» —
+                # «все» appears only in step 1 but action-tools in
+                # later steps still need it to resolve product_ids.
+                # Inherit from `hints` only when the sub-text didn't
+                # express its own value.
+                if hints is not None:
+                    if not step_hints.quantifier:
+                        step_hints.quantifier = hints.quantifier
+                        step_hints.quantifier_n = hints.quantifier_n
+                    if step_hints.quantity is None:
+                        step_hints.quantity = hints.quantity
+            else:
+                step_hints = hints
+
             # 1. Fill args via ArgsFiller (deterministic-from-hints OR per-tool LLM).
             #    Skeleton plans arrive with empty args; legacy callers may pass
             #    non-empty args — in which case we honor them as a starting point.
             try:
                 filled = await self.args_filler.fill(
                     tool_name=step.tool,
-                    hints=hints,
+                    hints=step_hints,
                     context=context,
                     consumed_ids=consumed_ids,
-                    last_user_text=last_user_text,
+                    last_user_text=step_text,
                     filter_options=filter_options,
                 )
             except Exception as e:
@@ -91,7 +131,7 @@ class PlanExecutor:
             # 2. Post-merge deterministic hints over LLM args (regex more
             #    accurate on numbers; quantifier authoritative for product_ids).
             resolved_args = _merge_hints(
-                step.tool, resolved_args, hints,
+                step.tool, resolved_args, step_hints,
                 visible=context.visible_product_ids,
                 consumed=consumed_ids,
             )
@@ -201,6 +241,37 @@ def _strip_to_tool_fields(
     return {k: v for k, v in args.items() if k in allowed}
 
 
+# ---------- quantifier resolver for LLM-emitted args ----------
+
+def _resolve_llm_quantifier(
+    q: str,
+    n: int | None,
+    visible: list[int],
+    consumed: set[int],
+) -> list[int] | None:
+    """Mirror of `core.parsing.apply_quantifier` but takes raw values from
+    LLM args (lowercase enum: all/first_n/last_n/remaining/specific).
+
+    Returns the resolved product_id list, or None if quantifier is
+    `specific` (caller already has product_ids) or unrecognized.
+    """
+    if not q or not visible:
+        return None
+    if q == "all":
+        return list(visible)
+    if q == "remaining":
+        return [pid for pid in visible if pid not in consumed]
+    if q == "specific":
+        return None
+    available = [pid for pid in visible if pid not in consumed]
+    n_val = n or 1
+    if q == "first_n":
+        return available[:n_val]
+    if q == "last_n":
+        return available[-n_val:] if available else []
+    return None
+
+
 # ---------- merge_hints ----------
 
 def _merge_hints(
@@ -228,18 +299,31 @@ def _merge_hints(
         # category from hints overrides only if LLM left it blank
         if hints.category and not out.get("category"):
             out["category"] = hints.category
-        # search from hints (regex over adjective dict) overrides ALWAYS —
-        # 3B model frequently misses this slot or routes it to address/status
-        if hints.search:
-            out["search"] = hints.search
+        # `search` is now a free-form descriptor filled by the LLM and matched
+        # semantically by pgvector — no parser-side override.
         return out
 
     if tool in PRODUCT_ID_TOOLS:
-        # Quantifier deterministically resolves product_ids
-        resolved = apply_quantifier(hints, list(visible), consumed)
-        if resolved is not None:
-            out["product_ids"] = resolved
-        if tool == "add_to_cart" and hints.quantity is not None:
+        # Quantifier resolution priority:
+        #   1. LLM-emitted quantifier (explicit intent in args)
+        #   2. Parser-extracted quantifier (regex from user text)
+        # The fine-tuned model sets these directly; the parser is the
+        # fallback for non-fine-tuned/baseline runs.
+        llm_q = out.get("quantifier")
+        if llm_q:
+            resolved = _resolve_llm_quantifier(
+                llm_q, out.get("n"), list(visible), consumed,
+            )
+            if resolved is not None:
+                out["product_ids"] = resolved
+            # Strip helper fields — tool execute() works on product_ids only.
+            out.pop("quantifier", None)
+            out.pop("n", None)
+        else:
+            resolved = apply_quantifier(hints, list(visible), consumed)
+            if resolved is not None:
+                out["product_ids"] = resolved
+        if tool == "add_to_cart" and "quantity" not in out and hints.quantity is not None:
             out["quantity"] = hints.quantity
         return out
 

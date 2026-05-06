@@ -2,138 +2,101 @@ from typing import Any
 
 from core.tools.base import BaseTool
 
+# Imported lazily inside execute() to avoid cross-package import cycles
+# (core/* should not statically depend on backend/app/*, and only execute()
+# needs the resolvers).
 
-class GetProductDetailsTool(BaseTool):
-    name = "get_product_details"
-    description = "Открыть карточку товара с подробной информацией по его ID"
 
-    def skeleton_examples(self):
-        return ["открой товар", "покажи детали товара", "подробнее про товар"]
-    updates_context = {"open_product_id": "result.product.id"}
-    parameters = {
-        "type": "object",
-        "properties": {
-            "product_id": {
-                "type": "integer",
-                "description": "Product ID (numeric)",
-            },
-        },
-        "required": ["product_id"],
-    }
+# Field descriptions — MUST match dataset/generator.py:FIELD_DESCRIPTIONS so the
+# model sees identical schema text at runtime as it did during training.
+_FIELD_DESCRIPTIONS = {
+    "category":    "Одна категория товара",
+    "material":    "Материалы (массив, можно несколько)",
+    "color":       "Цвета (массив, можно несколько)",
+    "price_level": "Семантический ценовой сегмент",
+    "min_price":   "Минимальная цена в рублях",
+    "max_price":   "Максимальная цена в рублях",
+    "search":      "Описательные слова: стиль (лофт, минимализм), персона (детский, офисный), эмоция (уютный), конкретные сорта (дуб, велюр)",
+    "in_stock":    "Только товары в наличии",
+}
 
-    def param_schema(self, filter_options=None, session_context=None):
-        # Restrict product_id to currently visible products + the one already open.
-        allowed: list[int] = []
-        if session_context is not None:
-            allowed = list(session_context.visible_product_ids or [])
-            if session_context.open_product_id is not None:
-                if session_context.open_product_id not in allowed:
-                    allowed.append(session_context.open_product_id)
-        pid_schema: dict[str, Any] = {"type": "integer"}
-        if allowed:
-            pid_schema["enum"] = allowed
-        return {
-            "type": "object",
-            "properties": {"product_id": pid_schema},
-            "required": ["product_id"],
-        }
-
-    async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
-        product = await self.provider.get_product(kwargs["product_id"])
-        if not product:
-            return {"error": "Product not found"}
-        return {"action": "show_product_details", "product": product}
+# API-level enum (price segmentation contract — not catalog data)
+_PRICE_LEVELS = ["budget", "mid", "premium"]
 
 
 class ApplyFiltersTool(BaseTool):
     name = "apply_filters"
+    # Description matches dataset/generator.py:TOOL_DESCRIPTIONS — keep short
+    # to mirror training format exactly.
+    description = "Применить фильтры к каталогу для поиска товаров"
     updates_context = {
         "last_search": "result",
         "visible_product_ids": "result.products[*].id",
         "current_filters": "result.filters",
     }
-    description = (
-        "Найти/показать товары в каталоге по фильтрам "
-        "(категория, поиск, цена). Каждый вызов ЗАМЕНЯЕТ предыдущие фильтры — "
-        "передавай все нужные фильтры сразу. Без аргументов — показать все товары."
-    )
 
-    def skeleton_examples(self):
-        return [
-            "покажи диваны", "найди столы до 30000",
-            "предложи кровати детские", "что есть из стульев",
-            "покажи все товары",
-        ]
+    # Static fallback (used if filter_options is empty — keeps schema valid).
+    # Key order inside each field schema: type → enum → description (matches
+    # dataset/generator.py:_tool_full_schema variant A).
     parameters = {
         "type": "object",
         "properties": {
-            "search": {
-                "type": "string",
-                "description": "Уточняющий поиск внутри категории (например: детская, офисный, складной, угловой)",
-            },
-            "category": {
-                "type": "string",
-                "description": "Product category (exact value from available list)",
-            },
-            "min_price": {
-                "type": "number",
-                "description": "Minimum price",
-            },
-            "max_price": {
-                "type": "number",
-                "description": "Maximum price",
-            },
-            "in_stock": {
-                "type": "boolean",
-                "description": "Only in stock",
-            },
+            "category":    {"type": "string", "description": _FIELD_DESCRIPTIONS["category"]},
+            "material":    {"type": "array", "items": {"type": "string"}, "description": _FIELD_DESCRIPTIONS["material"]},
+            "color":       {"type": "array", "items": {"type": "string"}, "description": _FIELD_DESCRIPTIONS["color"]},
+            "price_level": {"type": "string", "enum": _PRICE_LEVELS, "description": _FIELD_DESCRIPTIONS["price_level"]},
+            "min_price":   {"type": "number", "description": _FIELD_DESCRIPTIONS["min_price"]},
+            "max_price":   {"type": "number", "description": _FIELD_DESCRIPTIONS["max_price"]},
+            "search":      {"type": "string", "description": _FIELD_DESCRIPTIONS["search"]},
+            "in_stock":    {"type": "boolean", "description": _FIELD_DESCRIPTIONS["in_stock"]},
         },
-        "required": [],
     }
 
-    def param_schema(self, filter_options=None, session_context=None):
-        cat_schema: dict[str, Any] = {"type": "string"}
-        if filter_options and filter_options.get("categories"):
-            cat_schema["enum"] = list(filter_options["categories"])
+    def _build_parameters(self, filter_options: dict[str, Any]) -> dict[str, Any]:
+        cats = list(filter_options.get("categories") or [])
+        cols = list(filter_options.get("colors") or [])
+        mats = list(filter_options.get("materials") or [])
+        cat: dict[str, Any] = {"type": "string"}
+        if cats: cat["enum"] = cats
+        cat["description"] = _FIELD_DESCRIPTIONS["category"]
+        mat_items: dict[str, Any] = {"type": "string"}
+        if mats: mat_items["enum"] = mats
+        col_items: dict[str, Any] = {"type": "string"}
+        if cols: col_items["enum"] = cols
         return {
             "type": "object",
             "properties": {
-                "search": {
-                    "type": "string",
-                    "maxLength": 64,
-                    "description": (
-                        "Уточняющий запрос ВНУТРИ категории — обычно это "
-                        "прилагательное-определение к категории "
-                        "(детская, офисный, складной, угловой, деревянный). "
-                        "ОБЯЗАТЕЛЬНО заполняй когда в запросе есть подобное "
-                        "прилагательное (например «детские кровати» → search='детская')."
-                    ),
-                },
-                "category": cat_schema,
-                "min_price": {"type": "number", "minimum": 0},
-                "max_price": {"type": "number", "minimum": 0},
-                "in_stock": {"type": "boolean"},
+                "category":    cat,
+                "material":    {"type": "array", "items": mat_items, "description": _FIELD_DESCRIPTIONS["material"]},
+                "color":       {"type": "array", "items": col_items, "description": _FIELD_DESCRIPTIONS["color"]},
+                "price_level": {"type": "string", "enum": _PRICE_LEVELS, "description": _FIELD_DESCRIPTIONS["price_level"]},
+                "min_price":   {"type": "number", "description": _FIELD_DESCRIPTIONS["min_price"]},
+                "max_price":   {"type": "number", "description": _FIELD_DESCRIPTIONS["max_price"]},
+                "search":      {"type": "string", "description": _FIELD_DESCRIPTIONS["search"]},
+                "in_stock":    {"type": "boolean", "description": _FIELD_DESCRIPTIONS["in_stock"]},
             },
-            "required": [],
         }
 
-    def few_shot(self):
-        return [
-            {"user": "диваны до 50000",
-             "args": {"category": "Диваны", "max_price": 50000}},
-            {"user": "офисные стулья от 5000 до 20000",
-             "args": {"category": "Стулья", "search": "офисный",
-                      "min_price": 5000, "max_price": 20000}},
-            {"user": "предложи кровати детские",
-             "args": {"category": "Кровати", "search": "детская"}},
-            {"user": "складные столы",
-             "args": {"category": "Столы", "search": "складной"}},
-            {"user": "покажи угловые диваны",
-             "args": {"category": "Диваны", "search": "угловой"}},
-        ]
-
     async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
+        from app.core.semantic_config import resolve_price_level
+
         filters = {k: v for k, v in kwargs.items() if v is not None and k != "user_id"}
+
+        if filters.get("price_level"):
+            lvl_min, lvl_max = resolve_price_level(filters["price_level"])
+            if lvl_min is not None and filters.get("min_price") is None:
+                filters["min_price"] = lvl_min
+            if lvl_max is not None and filters.get("max_price") is None:
+                filters["max_price"] = lvl_max
+
+        def _as_list(v: Any) -> list[str] | None:
+            if v is None:
+                return None
+            if isinstance(v, str):
+                return [v]
+            if isinstance(v, list):
+                return [str(x) for x in v if x]
+            return None
 
         products = await self.provider.search_products(
             query=filters.get("search"),
@@ -141,6 +104,8 @@ class ApplyFiltersTool(BaseTool):
             min_price=filters.get("min_price"),
             max_price=filters.get("max_price"),
             in_stock=filters.get("in_stock", True),
+            material=_as_list(filters.get("material")),
+            color=_as_list(filters.get("color")),
             limit=20,
         )
 

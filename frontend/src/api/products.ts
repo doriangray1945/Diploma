@@ -1,5 +1,5 @@
 import api from './client';
-import type { Product, ProductListResponse, ProductFilters, Category } from '../types';
+import type { Product, ProductListResponse, ProductFilters, Category, FilterOptions } from '../types';
 
 export const productsApi = {
   getProducts: async (
@@ -16,7 +16,14 @@ export const productsApi = {
       if (filters.subcategory) params.append('subcategory', filters.subcategory);
       if (filters.min_price !== undefined) params.append('min_price', filters.min_price.toString());
       if (filters.max_price !== undefined) params.append('max_price', filters.max_price.toString());
-      if (filters.color) params.append('color', filters.color);
+      // Multi-value: append one query-param per element. FastAPI parses
+      // repeated keys into a list[str].
+      if (filters.color && filters.color.length > 0) {
+        for (const c of filters.color) params.append('color', c);
+      }
+      if (filters.material && filters.material.length > 0) {
+        for (const m of filters.material) params.append('material', m);
+      }
       if (filters.in_stock !== undefined) params.append('in_stock', filters.in_stock.toString());
       if (filters.is_popular !== undefined) params.append('is_popular', filters.is_popular.toString());
       if (filters.is_new !== undefined) params.append('is_new', filters.is_new.toString());
@@ -36,6 +43,11 @@ export const productsApi = {
 
   getCategories: async (): Promise<Category[]> => {
     const response = await api.get<Category[]>('/products/categories');
+    return response.data;
+  },
+
+  getFilterOptions: async (): Promise<FilterOptions> => {
+    const response = await api.get<FilterOptions>('/products/filter-options');
     return response.data;
   },
 };

@@ -37,13 +37,21 @@ export interface ProductFilters {
   subcategory?: string;
   min_price?: number;
   max_price?: number;
-  color?: string;
+  color?: string[];      // multi-value: «красные или синие»
+  material?: string[];   // multi-value: «твёрдое» = ['дерево','металл']
   in_stock?: boolean;
   is_popular?: boolean;
   is_new?: boolean;
   search?: string;
   sort_by?: string;
   sort_order?: string;
+}
+
+export interface FilterOptions {
+  categories: string[];
+  colors: string[];
+  materials: string[];
+  price_range: { min: number; max: number };
 }
 
 export interface ProductListResponse {

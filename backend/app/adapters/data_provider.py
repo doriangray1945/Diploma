@@ -1,10 +1,45 @@
 from typing import Any
 
-from sqlalchemy import select, or_, delete
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.semantic_config import MATERIAL_GROUPS, resolve_material
 from app.models import Product, CartItem, Order, OrderItem, Favorite
+from app.services.products import apply_search_filter
+
+
+def _row_matches(product: Any, flt: dict[str, Any]) -> bool:
+    """True if `product` matches every non-empty key in the filter.
+
+    Used by remove_*_by_filter. AND across keys; OR within array values.
+    """
+    if product is None:
+        return False
+    if flt.get("category") and product.category != flt["category"]:
+        return False
+
+    color = flt.get("color")
+    if color:
+        color_list = color if isinstance(color, list) else [color]
+        if product.color not in color_list:
+            return False
+
+    material = flt.get("material")
+    if material:
+        material_list = material if isinstance(material, list) else [material]
+        all_substrings: list[str] = []
+        for m in material_list:
+            all_substrings.extend(MATERIAL_GROUPS.get(m, []))
+        materials_str = (product.materials or "").lower()
+        if all_substrings and not any(s.lower() in materials_str for s in all_substrings):
+            return False
+
+    if flt.get("product_name"):
+        needle = flt["product_name"].lower()
+        if needle not in (product.name or "").lower():
+            return False
+    return True
 
 
 class PostgresDataProvider:
@@ -25,34 +60,45 @@ class PostgresDataProvider:
         limit: int = 5,
         **filters: Any,
     ) -> list[dict[str, Any]]:
-        q = select(Product)
-
-        if query:
-            pattern = f"%{query}%"
-            q = q.where(
-                or_(
-                    Product.name.ilike(pattern),
-                    Product.description.ilike(pattern),
-                )
-            )
+        # Build base query with non-search filters first, then layer BM25
+        # full-text search on top via apply_search_filter. Same code path
+        # as /api/products — keeps UI search box and AI chat consistent.
+        base = select(Product)
         if category:
-            q = q.where(Product.category.ilike(f"%{category}%"))
+            base = base.where(Product.category.ilike(f"%{category}%"))
         if min_price is not None:
-            q = q.where(Product.price >= min_price)
+            base = base.where(Product.price >= min_price)
         if max_price is not None:
-            q = q.where(Product.price <= max_price)
+            base = base.where(Product.price <= max_price)
         if in_stock:
-            q = q.where(Product.in_stock == True)
+            base = base.where(Product.in_stock == True)  # noqa: E712
 
-        # Domain-specific filters (e.g. color for furniture)
+        # Color filter — list (multi-value) OR single string.
+        # Multiple values OR'd: «красные или синие диваны».
         color = filters.get("color")
         if color:
-            q = q.where(Product.color.ilike(f"%{color}%"))
+            color_list = color if isinstance(color, list) else [color]
+            base = base.where(or_(*[
+                Product.color.ilike(f"%{c}%") for c in color_list if c
+            ]))
 
-        q = q.limit(limit)
-        result = await self.db.execute(q)
+        # Material filter — list of coarse-grained labels («твёрдое» =
+        # ['дерево', 'металл']). Each label expands via MATERIAL_GROUPS
+        # to its catalog substrings, all ORd into a single big WHERE.
+        material = filters.get("material")
+        if material:
+            material_list = material if isinstance(material, list) else [material]
+            all_substrings: list[str] = []
+            for m in material_list:
+                all_substrings.extend(resolve_material(m))
+            if all_substrings:
+                base = base.where(or_(*[
+                    Product.materials.ilike(f"%{s}%") for s in all_substrings
+                ]))
+
+        searchable = apply_search_filter(base, query).limit(limit)
+        result = await self.db.execute(searchable)
         products = result.scalars().all()
-
         return [self._product_to_dict(p) for p in products]
 
     async def get_product(self, product_id: int) -> dict[str, Any] | None:
@@ -324,6 +370,75 @@ class PostgresDataProvider:
         await self.db.commit()
         return {"message": f"Товар '{name}' удалён"}
 
+    # ── Bulk admin ops (chat tools update_stock/update_prices/get_sales_analytics)
+
+    async def bulk_update_stock(
+        self, filter: dict[str, Any], operation: str, quantity: int
+    ) -> dict[str, Any]:
+        from app.schemas.admin import AdminFilter
+        from app.services.products import bulk_update_stock as svc
+
+        try:
+            flt = AdminFilter(**(filter or {}))
+        except Exception as e:
+            return {"error": f"Invalid filter: {e}"}
+        affected = await svc(self.db, flt, operation, quantity)
+        return {
+            "affected_count": affected,
+            "operation": operation,
+            "message": f"Обновлены остатки {affected} товаров (операция: {operation}, количество: {quantity})",
+        }
+
+    async def bulk_update_prices(
+        self, filter: dict[str, Any], operation: str, value: int
+    ) -> dict[str, Any]:
+        from app.schemas.admin import AdminFilter
+        from app.services.products import bulk_update_prices as svc
+
+        try:
+            flt = AdminFilter(**(filter or {}))
+        except Exception as e:
+            return {"error": f"Invalid filter: {e}"}
+        affected, delta = await svc(self.db, flt, operation, value)
+        return {
+            "affected_count": affected,
+            "operation": operation,
+            "revenue_impact": float(delta),
+            "message": f"Обновлены цены {affected} товаров (операция: {operation}, значение: {value})",
+        }
+
+    async def query_sales_analytics(self, **kwargs: Any) -> dict[str, Any]:
+        from app.schemas.admin import AdminFilter, AnalyticsQuery
+        from app.services import analytics
+
+        # Filter pre-parse: tool may pass dict, schema needs AdminFilter
+        if "filter" in kwargs and isinstance(kwargs["filter"], dict):
+            try:
+                kwargs["filter"] = AdminFilter(**kwargs["filter"])
+            except Exception as e:
+                return {"error": f"Invalid filter: {e}"}
+        try:
+            payload = AnalyticsQuery(**kwargs)
+        except Exception as e:
+            return {"error": f"Invalid analytics query: {e}"}
+        buckets = await analytics.query(
+            self.db,
+            period=payload.period,
+            group_by=payload.group_by,
+            metric=payload.metric,
+            sort=payload.sort,
+            limit=payload.limit,
+            from_date=payload.from_date,
+            to_date=payload.to_date,
+            filter=payload.filter,
+        )
+        return {
+            "buckets": [b.model_dump() for b in buckets],
+            "metric": payload.metric,
+            "group_by": payload.group_by,
+            "period": payload.period,
+        }
+
     # ── Favorites ─────────────────────────────────────────────────
 
     async def get_favorites(self, user_id: int) -> list[dict[str, Any]]:
@@ -406,6 +521,50 @@ class PostgresDataProvider:
         await self.db.commit()
         return {"cleared": True, "removed_count": len(items)}
 
+    async def remove_favorites_by_filter(
+        self, user_id: int, flt: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Remove favorites matching `flt` against the user's current list.
+
+        flt keys: category, color, material, product_name, all.
+        Returns {removed: [{product_id, product_name}, ...], count: N}.
+        """
+        return await self._remove_by_filter(user_id, flt, table="favorites")
+
+    async def remove_cart_by_filter(
+        self, user_id: int, flt: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Symmetric to remove_favorites_by_filter, for cart_items."""
+        return await self._remove_by_filter(user_id, flt, table="cart")
+
+    async def _remove_by_filter(
+        self, user_id: int, flt: dict[str, Any], table: str
+    ) -> dict[str, Any]:
+        Model = Favorite if table == "favorites" else CartItem
+        # Pull the user's full set joined with Product so we can apply
+        # the agent-emitted filter against product attributes (category,
+        # color, materials substring) directly in Python — small set
+        # (<200 items realistic) so no SQL JOIN headache needed.
+        rows = (await self.db.execute(
+            select(Model).where(Model.user_id == user_id)
+            .options(selectinload(Model.product))
+        )).scalars().all()
+
+        if flt.get("all"):
+            matching = list(rows)
+        else:
+            matching = [r for r in rows if _row_matches(r.product, flt)]
+
+        removed = []
+        for row in matching:
+            removed.append({
+                "product_id": row.product_id,
+                "product_name": row.product.name if row.product else None,
+            })
+            await self.db.delete(row)
+        await self.db.commit()
+        return {"removed": removed, "count": len(removed)}
+
     # ── Filter discovery ────────────────────────────────────────
 
     _filter_cache: dict[str, Any] | None = None
@@ -430,6 +589,11 @@ class PostgresDataProvider:
         )
         colors = sorted([r for r in color_result.scalars().all() if r])
 
+        # Materials: surface canonical groups (MATERIAL_GROUPS keys), not raw
+        # DB tokens. Frontend filter and LLM-prompt enum stay aligned; backend
+        # expands group → substrings via resolve_material() during search.
+        materials = list(MATERIAL_GROUPS.keys())
+
         price_result = await self.db.execute(
             select(func.min(Product.price), func.max(Product.price))
         )
@@ -439,6 +603,7 @@ class PostgresDataProvider:
         self._filter_cache = {
             "categories": categories,
             "colors": colors,
+            "materials": materials,
             "price_range": {"min": min_p, "max": max_p},
         }
         self._filter_cache_ts = now

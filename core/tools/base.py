@@ -25,43 +25,26 @@ class BaseTool(ABC):
     @abstractmethod
     async def execute(self, **kwargs: Any) -> dict[str, Any]: ...
 
-    def to_ollama_schema(self) -> dict[str, Any]:
+    def to_json_schema(self, filter_options: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Industry-standard function-calling JSON Schema entry.
+
+        `filter_options` carries current DB catalog state (categories, colors,
+        materials). Tools that expose enum-constrained catalog fields override
+        `_build_parameters` to inject these values dynamically — adding a new
+        category in DB shows up in the next request's prompt without retrain.
+        API enums (quantifier, operation, period, ...) stay static — that's
+        the contract, not data.
+        """
         return {
-            "type": "function",
-            "function": {
-                "name": self.name,
-                "description": self.description,
-                "parameters": self.parameters,
-            },
+            "name": self.name,
+            "description": self.description,
+            "parameters": self._build_parameters(filter_options or {}),
         }
 
-    def param_schema(
-        self,
-        filter_options: dict[str, Any] | None = None,
-        session_context: Any | None = None,
-    ) -> dict[str, Any]:
-        """JSON Schema for this tool's args used by Schema Router constrained decoding.
-
-        Override in subclasses to inject dynamic enums (categories from DB,
-        product_ids from session) or value constraints (patterns, ranges).
-        Default returns the static `parameters` dict.
-        """
+    def _build_parameters(self, filter_options: dict[str, Any]) -> dict[str, Any]:
+        """Override in subclasses with enum-constrained catalog fields.
+        Default returns the static `parameters` dict."""
         return self.parameters
-
-    def few_shot(self) -> list[dict[str, Any]]:
-        """Few-shot examples for this tool. Each: {"user": str, "args": dict}.
-
-        Rendered into the planner system prompt by build_system_prompt.
-        Default is empty — tool authors add examples in their own subclass.
-        """
-        return []
-
-    def skeleton_examples(self) -> list[str]:
-        """Short user phrases that should trigger this tool at the skeleton
-        (tool-selection) stage. Rendered into build_planner_skeleton_prompt as
-        '"<phrase>" → <tool.name>'. Teaches the model intent → tool mapping
-        without args. Default empty — tools opt in by overriding."""
-        return []
 
 
 def flatten_ids(raw: Any) -> list[int]:
@@ -107,9 +90,6 @@ class ToolRegistry:
             if role == "admin" or tool.role == "user":
                 filtered.register(tool)
         return filtered
-
-    def to_ollama_schemas(self) -> list[dict[str, Any]]:
-        return [tool.to_ollama_schema() for tool in self._tools.values()]
 
     async def execute(
         self, name: str, user_id: int = 0, **kwargs: Any

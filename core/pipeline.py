@@ -1,28 +1,37 @@
+"""Single-shot pipeline for the fine-tuned furniture model.
+
+The fine-tuned `qwen2.5-3b-furniture` model emits a complete
+`{"plan": [{tool, args}, ...]}` from one LLM call given a JSON-Schema
+system prompt. We feed it that prompt (built from the role-filtered tool
+registry with current DB enums), parse the JSON response, and let
+`PlanExecutor` + `ParseHints` handle quantifier resolution and numeric
+corrections.
+
+Single execution path — the specialist model handles tool selection +
+arg filling end-to-end.
+"""
 from __future__ import annotations
 
-import hashlib
+import asyncio
+import json
 import logging
+import re
+from typing import Any
 
-from core.agents.args_filler import ArgsFiller
-from core.agents.base import BaseAgent
-from core.agents.decomposer import Decomposer
 from core.agents.plan_executor import PlanExecutor
-from core.agents.schema_planner import SchemaPlannerAgent
 from core.agents.validator import ValidatorAgent
 from core.config import CoreConfig
 from core.llm.base import LLMProvider
-from core.parsing import is_negative_feedback, parse_user_text
-from core.plan_cache_port import PlanCachePort
+from core.parsing import parse_user_text
+from core.prompts.system import build_system_prompt
 from core.providers.base import DataProvider
 from core.schemas import (
     AgentResult,
     Complexity,
-    Intent,
     Message,
     PlanStepV2,
     Role,
     SessionContext,
-    StructuredPlan,
     UserContext,
 )
 from core.tools.base import ToolRegistry
@@ -31,159 +40,31 @@ from core.tools.base import ToolRegistry
 log = logging.getLogger(__name__)
 
 
-# Confidence thresholds for plan cache routing.
-# Calibrated against nomic-embed-text on Russian short queries:
-#   identical / paraphrase ("найди X" vs "покажи X")        ≈ 0.97-1.00
-#   synonym verb           ("положи" vs "закинь")           ≈ 0.84-0.86
-#   different category, same shape ("диваны" vs "кресла")   ≈ 0.84
-# 0.95 is safely above synonym-verb floor; 0.85 catches synonyms but needs
-# the intent/category guards in _intent_match / _categories_match below.
-_CACHE_TRUST_THRESHOLD = 0.95
-_CACHE_HYBRID_THRESHOLD = 0.85
+class _NoOpArgsFiller:
+    """Drop-in for ArgsFiller used by PlanExecutor.
 
-
-# Substrings in the user text that imply an action beyond a pure search —
-# if any are present, we MUST go through skeleton planner (can't fast-path).
-_NON_SEARCH_TRIGGERS = (
-    "корзин", "избранн", "wishlist", "заказ",
-    "купи", "оформи", "положи", "удали", "очисти",
-)
-_MULTI_ACTION_TRIGGERS = (
-    ",", " и ", " и,", "потом", "затем", "остальн", "оставш", "а также",
-)
-
-
-def _is_obvious_search(text: str, hints) -> bool:
-    """Fast-path: text describes ONLY a catalog filter request.
-
-    Conditions: parser found a category, text is short, no cart/favorites/
-    order verbs, no multi-action triggers. If true, the plan is trivially
-    a single apply_filters step with deterministic args from hints.
+    The fine-tuned model already supplies args for every step; we don't
+    want PlanExecutor to issue another LLM call per step. Returning {}
+    makes PlanExecutor honor `step.args` as-is, then merge ParseHints
+    over the top (numbers, quantifier resolution) via its existing logic.
     """
-    if not text or hints is None or not hints.category:
-        return False
-    if len(text) > 80:
-        return False
-    low = text.lower()
-    if any(t in low for t in _NON_SEARCH_TRIGGERS):
-        return False
-    if any(t in low for t in _MULTI_ACTION_TRIGGERS):
-        return False
-    return True
 
-
-def _build_legacy_system_prompt(tools: ToolRegistry, config: CoreConfig) -> str:
-    """System prompt used ONLY in the legacy native-tool-calling path.
-
-    Schema Router uses its own PLANNER_SYSTEM_PROMPT, which is incompatible with
-    these aggressive 'always call a tool' rules.
-    """
-    parts: list[str] = []
-
-    if config.business_prompt:
-        parts.append(config.business_prompt)
-
-    if tools.all():
-        parts.append(
-            "CRITICAL RULES:\n"
-            "- You MUST call your tools to perform ANY action (search, filter, "
-            "add to cart, create order, etc.)\n"
-            "- NEVER describe how to call a tool — just call it directly\n"
-            "- NEVER pretend you performed an action without calling the tool\n"
-            "- NEVER say 'done' or 'added' unless you actually called the tool "
-            "and got a result\n"
-            "- When the user asks to do something with ALL products, you MUST "
-            "call the tool for EACH product. Do not skip any. Do not stop "
-            "halfway.\n"
-            "- You have NO internal data. All information comes from tool "
-            "results only\n"
-            "- All IDs are numbers from tool results only. NEVER invent IDs\n"
-            "- NEVER invent or list product names, prices, or details from "
-            "memory. The user sees real products in the catalog UI"
-        )
-
-    parts.append(f"ALWAYS respond in {config.language}. Be concise.")
-    return "\n\n".join(parts)
+    async def fill(self, *args, **kwargs) -> dict[str, Any]:
+        return {}
 
 
 class Pipeline:
-    """Main entry point: text in -> structured result out.
-
-    Two modes (toggled by `config.use_structured_output`):
-
-    * Schema Router (default): one constrained-decoding LLM call returns a
-      StructuredPlan with intent + plan + user_message. Plan is executed
-      deterministically with reference resolution.
-    * Legacy: original Orchestrator -> Planner -> BaseAgent native
-      tool-calling loop. Kept for A/B benchmarking.
-    """
+    """Main entry point: text in → structured result out."""
 
     def __init__(
         self,
         llm: LLMProvider,
         provider: DataProvider,
         config: CoreConfig | None = None,
-        plan_cache: PlanCachePort | None = None,
     ):
         self.llm = llm
         self.provider = provider
         self.config = config or CoreConfig()
-        self.plan_cache = plan_cache
-
-    @staticmethod
-    def _tools_signature(tools: ToolRegistry) -> str:
-        """Stable hash of registered tool names — pins cache entries to a registry shape."""
-        names = sorted(t.name for t in tools.all())
-        return hashlib.sha256(",".join(names).encode()).hexdigest()[:16]
-
-    @staticmethod
-    def _categories_match(
-        current_text: str,
-        cached_text: str,
-        categories: list[str],
-    ) -> bool:
-        """Cached plan must address the SAME category (or both unspecified).
-
-        Without this guard, embedding rates "диваны до 50000" vs "кресла до
-        30000" at ~0.84, and the hybrid tier would routinely pick a
-        wrong-category plan as inspiration.
-        """
-        cur = parse_user_text(current_text, categories)
-        cached_h = parse_user_text(cached_text, categories)
-        if cur.category and cached_h.category and cur.category != cached_h.category:
-            return False
-        return True
-
-    @staticmethod
-    def _intent_match(current_text: str, cached_text: str) -> bool:
-        """Cached plan must address the SAME action targets and polarity.
-
-        Embedding sim is too coarse for short Russian queries — it can't
-        reliably tell apart:
-          - target set: «X в корзину» vs «X в корзину И в избранное» (sim≈0.99)
-          - polarity:   «добавь» vs «удали» (high sim, opposite intent)
-        Pure feature-extraction guard avoids these aliases at zero LLM cost.
-        """
-        targets = ("корзин", "избранн", "wishlist", "заказ")
-        cur_t = {t for t in targets if t in current_text.lower()}
-        cached_t = {t for t in targets if t in cached_text.lower()}
-        if cur_t != cached_t:
-            return False
-        positive = ("добав", "положи", "купи", "закин", "сохран")
-        negative = ("удал", "убер", "очист", "верн", "сним")
-        cur_p = (
-            "+" if any(p in current_text.lower() for p in positive)
-            else "-" if any(n in current_text.lower() for n in negative)
-            else "?"
-        )
-        cached_p = (
-            "+" if any(p in cached_text.lower() for p in positive)
-            else "-" if any(n in cached_text.lower() for n in negative)
-            else "?"
-        )
-        if cur_p in ("+", "-") and cached_p in ("+", "-") and cur_p != cached_p:
-            return False
-        return True
 
     async def run(
         self,
@@ -193,237 +74,107 @@ class Pipeline:
         session_context: SessionContext | None = None,
     ) -> AgentResult:
         session_context = session_context or SessionContext()
-        messages = [
-            *user_context.history,
-            Message(role=Role.USER, content=text),
-        ]
-
-        if self.config.use_structured_output:
-            result = await self._run_structured(
-                messages, tools, user_context, session_context
-            )
-        else:
-            result = await self._run_legacy(messages, tools, user_context)
-
-        validator = ValidatorAgent(self.provider)
-        return await validator.validate(result)
-
-    # ---------- Schema Router path ----------
-
-    async def _run_structured(
-        self,
-        messages: list[Message],
-        tools: ToolRegistry,
-        user_context: UserContext,
-        session_context: SessionContext,
-    ) -> AgentResult:
-        # Filter the tool registry by user role — non-admins must not see
-        # admin tools (add_product/update_product/delete_product) in either
-        # the schema enum or the prompt.
-        tools = tools.for_role(user_context.role)
-
-        # Dynamic enum values (categories, colors) from DB via provider
+        role = user_context.role
+        role_filtered = tools.for_role(role)
         filter_options = await self.provider.get_filter_options()
+        categories = (filter_options or {}).get("categories", [])
 
-        # Deterministic pre-parsing of the user's last message
-        last_user_text = next(
-            (m.content for m in reversed(messages) if m.role == Role.USER),
-            "",
-        )
-        hints = parse_user_text(
-            last_user_text, filter_options.get("categories", []) if filter_options else []
-        )
-
-        # Stale-context reset on new category or new price filter — clears
-        # visible_product_ids from prior search so this turn starts fresh.
+        hints = parse_user_text(text, categories)
         if hints.triggers_reset:
             session_context.last_search = None
             session_context.visible_product_ids = []
             session_context.current_filters = {}
 
-        planner = SchemaPlannerAgent(self.llm, tools, self.config)
-        args_filler = ArgsFiller(self.llm, tools, self.config)
-        executor = PlanExecutor(tools, args_filler)
+        # Single-turn — model trained on system + user only, no prior turns.
+        # filter_options carries fresh DB enums into each tool's schema.
+        prompt_messages = [
+            Message(role=Role.SYSTEM,
+                    content=build_system_prompt(role_filtered, role, filter_options)),
+            Message(role=Role.USER, content=text),
+        ]
 
-        # PLAN CACHE: confidence-based plan retrieval. Tiers:
-        #   sim ≥ 0.95  + intent + cat OK → trust → use cached plan, skip skeleton
-        #   0.85-0.95   + intent + cat OK → hybrid → skeleton with cached as few-shot
-        #   else                          → cache miss, full pipeline
-        # Skip cache for negative-feedback queries (chat.py already short-circuits
-        # them, but defence in depth here too).
-        cached_plan: StructuredPlan | None = None
-        cached_hit_id: int | None = None
-        few_shot_plan: dict | None = None
-        if self.plan_cache and not is_negative_feedback(last_user_text):
-            tools_sig = self._tools_signature(tools)
-            categories = filter_options.get("categories", []) if filter_options else []
-            hit = await self.plan_cache.lookup(
-                user_context.user_id, last_user_text, tools_sig, categories
+        log.info("[CHAT] role=%s model=%s text=%r", role, self.config.chat_model, text[:80])
+        try:
+            response = await asyncio.wait_for(
+                self.llm.chat(prompt_messages, format=None, temperature=0.0),
+                timeout=self.config.planner_schema_timeout,
             )
-            if hit:
-                entry_id, cached_text, plan_json, sim = hit
-                cat_ok = self._categories_match(
-                    last_user_text, cached_text,
-                    filter_options.get("categories", []) if filter_options else [],
-                )
-                intent_ok = self._intent_match(last_user_text, cached_text)
-                compat = cat_ok and intent_ok
-                log.info(
-                    "[CACHE] lookup sim=%.3f cat=%s intent=%s entry=%d",
-                    sim, cat_ok, intent_ok, entry_id,
-                )
-                if compat and sim >= _CACHE_TRUST_THRESHOLD:
-                    try:
-                        cached_plan = StructuredPlan.model_validate(plan_json)
-                        cached_hit_id = entry_id
-                        log.info("[CACHE] tier=skip entry=%d", entry_id)
-                    except Exception as e:
-                        log.warning("[CACHE] failed to deserialize entry %d: %r",
-                                    entry_id, e)
-                elif compat and sim >= _CACHE_HYBRID_THRESHOLD:
-                    few_shot_plan = plan_json
-                    log.info("[CACHE] tier=fewshot entry=%d", entry_id)
+        except asyncio.TimeoutError:
+            log.warning("[CHAT] LLM timeout")
+            return AgentResult(response="", complexity=Complexity.SIMPLE)
+        except Exception as e:
+            log.warning("[CHAT] LLM error: %r", e)
+            return AgentResult(response="", complexity=Complexity.SIMPLE)
 
-        if cached_plan is not None:
-            # Tier 1 — trust cache, skip skeleton entirely.
-            plan = cached_plan
-            messages_for_skeleton = list(messages)
-        elif _is_obvious_search(last_user_text, hints):
-            # FAST-PATH: an unambiguous «show me X»-style search request can skip
-            # both decomposer and skeleton calls and execute apply_filters directly
-            # with deterministic args from hints. Saves 30-60s on warm CPU.
-            plan = StructuredPlan(
-                intent=Intent.EXECUTE,
-                plan=[PlanStepV2(step_id="step_1", tool="apply_filters", args={})],
-                user_message="",
-            )
-            messages_for_skeleton = list(messages)
-        else:
-            # Optional 0-th LLM call: rephrase tangled multi-action queries
-            # (with typos or "X и Y, остальные по N" grammar) into a clean
-            # numbered list. Skipped for short simple queries via skip-rule.
-            # Parser hints + args_filler keep working on the ORIGINAL text.
-            decomposer = Decomposer(self.llm, self.config)
-            effective_text = await decomposer.maybe_decompose(
-                last_user_text, hints=hints
-            )
-            messages_for_skeleton = list(messages)
-            if effective_text != last_user_text and messages_for_skeleton:
-                messages_for_skeleton[-1] = Message(
-                    role=Role.USER, content=effective_text
-                )
+        raw = (response.get("message") or {}).get("content", "") or ""
+        plan_steps = self._parse_plan(raw)
+        log.info("[CHAT] parsed %d steps from raw=%r", len(plan_steps), raw[:800])
 
-            # Hybrid pipeline call 1: tool sequence only (no args). The
-            # skeleton schema can't leak fields between tools because there
-            # is no `args` field at all — args are filled per-step by
-            # ArgsFiller below.
-            plan = await planner.plan_skeleton(
-                messages_for_skeleton, session_context,
-                filter_options=filter_options, hints=hints,
-                few_shot_plan=few_shot_plan,
-            )
+        executor = PlanExecutor(role_filtered, _NoOpArgsFiller())
+        _, tool_results, issues = await executor.execute(
+            plan_steps,
+            context=session_context,
+            user_id=user_context.user_id,
+            hints=hints,
+            filter_options=filter_options,
+            step_texts=[text],
+            fallback_text=text,
+        )
 
-        tool_results = []
-        issues = []
-        if plan.intent == Intent.EXECUTE and plan.plan:
-            _, tool_results, issues = await executor.execute(
-                plan.plan, session_context, user_context.user_id,
-                hints=hints, filter_options=filter_options,
-                last_user_text=last_user_text,
-            )
-
-            # One corrective retry only for LLM-mistake issues, not for
-            # objective semantic outcomes (e.g. "no remaining products
-            # after cart consumed everything" — retrying produces garbage).
-            retryable = [
-                i for i in issues
-                if "product_ids is empty" not in i.message
-                and "каталог пуст" not in i.message
-            ]
-            if retryable:
-                correction = (
-                    "ОШИБКА в предыдущем плане: "
-                    + "; ".join(i.message for i in retryable)
-                    + ". Сгенерируй исправленный план."
-                )
-                plan = await planner.plan_skeleton(
-                    messages_for_skeleton, session_context,
-                    filter_options=filter_options, hints=hints,
-                    extra_system=correction,
-                )
-                if plan.intent == Intent.EXECUTE and plan.plan:
-                    _, tool_results, issues = await executor.execute(
-                        plan.plan, session_context, user_context.user_id,
-                        hints=hints, filter_options=filter_options,
-                        last_user_text=last_user_text,
-                    )
-
-        action = None
+        action: dict[str, Any] | None = None
         for tr in reversed(tool_results):
             if isinstance(tr.result, dict) and "action" in tr.result:
                 action = tr.result
                 break
 
-        # PLAN CACHE STORE / RECORD: if the plan executed cleanly, either
-        # bump hit_count on the entry we reused, or persist a fresh entry
-        # for future similar queries. `last_cache_hit_id` is what chat.py
-        # reads on the NEXT turn for implicit-feedback attribution.
-        plan_success = (
-            plan.intent == Intent.EXECUTE
-            and plan.plan
-            and not issues
-            and all(
-                tr.error is None
-                and not (isinstance(tr.result, dict) and tr.result.get("error"))
-                for tr in tool_results
-            )
-        )
-        if self.plan_cache and plan_success:
-            if cached_hit_id is not None:
-                await self.plan_cache.record_hit(cached_hit_id)
-                session_context.last_cache_hit_id = cached_hit_id
-            elif not is_negative_feedback(last_user_text):
-                tools_sig = self._tools_signature(tools)
-                categories = filter_options.get("categories", []) if filter_options else []
-                stored_id = await self.plan_cache.store(
-                    user_context.user_id,
-                    last_user_text,
-                    plan.model_dump(mode="json"),
-                    tools_sig,
-                    categories,
-                )
-                if stored_id is not None:
-                    log.info(
-                        "[CACHE] stored entry=%d query=%r",
-                        stored_id, last_user_text[:60],
-                    )
-                session_context.last_cache_hit_id = stored_id
-            else:
-                session_context.last_cache_hit_id = None
-        else:
-            # Don't carry stale attribution to the next turn.
-            session_context.last_cache_hit_id = None
-
-        return AgentResult(
-            response=plan.user_message,
-            complexity=Complexity.COMPLEX if len(plan.plan) > 1 else Complexity.SIMPLE,
+        result = AgentResult(
+            response="",
+            complexity=Complexity.COMPLEX if len(plan_steps) > 1 else Complexity.SIMPLE,
             tool_results=tool_results,
             action=action,
             validation_issues=issues,
         )
 
-    # ---------- Legacy path (native tool calling) ----------
+        validator = ValidatorAgent(self.provider)
+        return await validator.validate(result)
 
-    async def _run_legacy(
-        self,
-        messages: list[Message],
-        tools: ToolRegistry,
-        user_context: UserContext,
-    ) -> AgentResult:
-        """Fallback: native tool-calling loop via BaseAgent.
+    @staticmethod
+    def _parse_plan(raw: str) -> list[PlanStepV2]:
+        """Extract plan steps from the model's JSON response.
 
-        Kept for A/B benchmarking (set use_structured_output=False).
+        Tolerates: bare `{...}` or wrapped in markdown ```json fences,
+        and the rare bug where the model emits `"parameters"` instead of `"args"`.
         """
-        system_prompt = _build_legacy_system_prompt(tools, self.config)
-        agent = BaseAgent(self.llm, tools, system_prompt)
-        return await agent.run(messages, user_id=user_context.user_id)
+        if not raw:
+            return []
+        text = raw.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.IGNORECASE)
+        try:
+            obj = json.loads(text)
+        except json.JSONDecodeError:
+            m = re.search(r"\{.*\}", text, re.DOTALL)
+            if not m:
+                return []
+            try:
+                obj = json.loads(m.group(0))
+            except json.JSONDecodeError as e:
+                log.warning("[CHAT] plan JSON parse failed: %r", e)
+                return []
+        if not isinstance(obj, dict):
+            return []
+        raw_steps = obj.get("plan") or []
+        if not isinstance(raw_steps, list):
+            return []
+        steps: list[PlanStepV2] = []
+        for i, s in enumerate(raw_steps):
+            if not isinstance(s, dict):
+                continue
+            tool_name = s.get("tool")
+            if not isinstance(tool_name, str) or not tool_name:
+                continue
+            args = s.get("args") if isinstance(s.get("args"), dict) else None
+            if args is None and isinstance(s.get("parameters"), dict):
+                args = s["parameters"]
+            steps.append(PlanStepV2(step_id=f"step_{i + 1}", tool=tool_name, args=args or {}))
+        return steps

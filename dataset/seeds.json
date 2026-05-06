@@ -1,0 +1,2423 @@
+{
+  "comment": "Hand-crafted gold examples — anchors for the GPT-4 phrasing generator and direct training material. Covers user (filters/favorites/cart), admin (stock/prices/analytics), quantity disambiguation, semantic generalization, conversational/negative. All seeds are CANONICAL (variant A names). Schema augmentation in generator.py renames tool/field names per variant.",
+  "examples": [
+    {
+      "role": "user",
+      "user": "найди диваны до 50000",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "max_price": 50000}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что есть из стульев",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Стулья"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "недорогие кровати",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кровати", "price_level": "budget"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "премиум диваны",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "price_level": "premium"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "мягкий диван",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "material": ["ткань", "кожа"]}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "твёрдый стол на чём можно есть",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "material": ["дерево", "металл"]}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ищу что-то твёрдое на чём можно есть",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "material": ["дерево", "металл"]}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "натуральная мебель",
+      "plan": [
+        {"tool": "apply_filters", "args": {"material": ["дерево", "ткань", "кожа"]}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "на чём бы поспать",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кровати"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "красный диван",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "color": ["Красный"]}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "красные или синие кресла",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кресла", "color": ["Красный", "Синий"]}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "яркий диван",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "color": ["Красный", "Жёлтый", "Зелёный", "Изумрудный"]}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "нейтральный шкаф",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Шкафы", "color": ["Бежевый", "Серый", "Белый"]}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "дубовый стол",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "material": ["дерево"], "search": "дуб"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "детская кровать",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кровати", "search": "детский"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "лофт стол",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "material": ["металл"], "search": "лофт"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "мягкое красное кресло до 50к",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кресла", "material": ["ткань", "кожа"], "color": ["Красный"], "max_price": 50000}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "недорогой деревянный или металлический шкаф",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Шкафы", "material": ["дерево", "металл"], "price_level": "budget"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди диваны и сохрани все в избранное",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны"}},
+        {"tool": "add_to_favorites", "args": {"quantifier": "all"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди мягкие диваны до 50к и положи все в корзину по 2 шт",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "material": ["ткань", "кожа"], "max_price": 50000}},
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 2}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ищу мебель от 20 до 30к элегантную в итальянском стиле, положи все в избранное и в корзину по 7 шт",
+      "plan": [
+        {"tool": "apply_filters", "args": {"min_price": 20000, "max_price": 30000, "search": "элегантный итальянский"}},
+        {"tool": "add_to_favorites", "args": {"quantifier": "all"}},
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 7}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди диваны, первые 2 в корзину по 3 шт, остальные в избранное",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны"}},
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2, "quantity": 3}},
+        {"tool": "add_to_favorites", "args": {"quantifier": "remaining"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди твёрдую мебель и сохрани в избранное и в корзину по 4 штуки",
+      "plan": [
+        {"tool": "apply_filters", "args": {"material": ["дерево", "металл"]}},
+        {"tool": "add_to_favorites", "args": {"quantifier": "all"}},
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 4}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "очисти избранное",
+      "plan": [
+        {"tool": "clear_favorites", "args": {}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "удали все из корзины",
+      "plan": [
+        {"tool": "clear_cart", "args": {}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "убери Milano из избранного",
+      "plan": [
+        {"tool": "remove_from_favorites", "args": {"filter": {"product_name": "Milano"}}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "удали кровати из избранного",
+      "plan": [
+        {"tool": "remove_from_favorites", "args": {"filter": {"category": "Кровати"}}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "убери красные и синие из корзины",
+      "plan": [
+        {"tool": "remove_from_cart", "args": {"filter": {"color": ["Красный", "Синий"]}}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "убери мягкие из избранного",
+      "plan": [
+        {"tool": "remove_from_favorites", "args": {"filter": {"material": ["ткань", "кожа"]}}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "очисти корзину и избранное",
+      "plan": [
+        {"tool": "clear_cart", "args": {}},
+        {"tool": "clear_favorites", "args": {}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "крсный диван дешовый",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "color": ["Красный"], "price_level": "budget"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "привет",
+      "plan": []
+    },
+    {
+      "role": "user",
+      "user": "оформи заказ",
+      "plan": []
+    },
+
+    {
+      "role": "user",
+      "user": "добавь в корзину 6 штук этого стола",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 6}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "добавь 6 диванов в корзину",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 6}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "положи по 5 штук всех в корзину",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 5}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "первые 3 в корзину по 2 штуки",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 3, "quantity": 2}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "положи 4 в корзину по 5 шт",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 4, "quantity": 5}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "добавь все по одной",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 1}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "две штуки",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 2}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "купи мне один",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 1}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "добавь 2 разных кресла",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "по парочке всех в корзину",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 2}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "сохрани первые 3 в избранное",
+      "plan": [
+        {"tool": "add_to_favorites", "args": {"quantifier": "first_n", "n": 3}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "последние 2 в избранное",
+      "plan": [
+        {"tool": "add_to_favorites", "args": {"quantifier": "last_n", "n": 2}}
+      ]
+    },
+
+    {
+      "role": "user",
+      "user": "уютный диван",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "material": ["ткань", "кожа"], "search": "уютный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "элегантная мебель",
+      "plan": [
+        {"tool": "apply_filters", "args": {"search": "элегантный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-то для дочери",
+      "plan": [
+        {"tool": "apply_filters", "args": {"search": "детский"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "офисный стул",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Стулья", "search": "офисный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-нибудь для гостиной",
+      "plan": [
+        {"tool": "apply_filters", "args": {"search": "гостиная"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "минималистичный шкаф",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Шкафы", "search": "минимализм"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "скандинавский стол",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "search": "скандинавский"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "винтажное кресло из кожи",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кресла", "material": ["кожа"], "search": "винтаж"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "уютный лофт",
+      "plan": [
+        {"tool": "apply_filters", "args": {"material": ["металл"], "search": "лофт уютный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "минимализм с душой",
+      "plan": [
+        {"tool": "apply_filters", "args": {"search": "минимализм тёплый"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "не банальный, но и не вычурный диван",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "search": "небанальный сдержанный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-то в духе Wes Anderson",
+      "plan": [
+        {"tool": "apply_filters", "args": {"search": "ретро эстетика симметрия"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "как у Хемингуэя в кабинете",
+      "plan": [
+        {"tool": "apply_filters", "args": {"material": ["дерево", "кожа"], "search": "брутальный кабинетный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стол в стиле Шерлока",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "material": ["дерево"], "search": "викторианский"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-то готическое",
+      "plan": [
+        {"tool": "apply_filters", "args": {"color": ["Чёрный", "Венге"], "search": "готический"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "космический футуризм",
+      "plan": [
+        {"tool": "apply_filters", "args": {"material": ["металл", "стекло"], "search": "футуристичный космический"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "диван чтобы кошка не порвала",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "material": ["кожа"], "search": "прочный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стол чтобы дети не сломали",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "material": ["дерево", "металл"], "search": "прочный детский"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "для свекрови чтоб обзавидовалась",
+      "plan": [
+        {"tool": "apply_filters", "args": {"price_level": "premium", "search": "люкс эффектный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "для маленькой студии",
+      "plan": [
+        {"tool": "apply_filters", "args": {"search": "компактный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "вместительный диван для большой семьи",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "search": "вместительный угловой"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-то для рабочего пространства но не офисное",
+      "plan": [
+        {"tool": "apply_filters", "args": {"search": "рабочий нестандартный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кровать для пары на медовый месяц",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кровати", "search": "романтический"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "шкаф для коллекционера книг",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Шкафы", "search": "книжный библиотечный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-то монументальное",
+      "plan": [
+        {"tool": "apply_filters", "args": {"price_level": "premium", "search": "монументальный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "пафосное кресло",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кресла", "price_level": "premium", "search": "пафосный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "чтобы душа отдыхала",
+      "plan": [
+        {"tool": "apply_filters", "args": {"material": ["ткань", "кожа"], "search": "спокойный уютный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "хочу ощущение замка",
+      "plan": [
+        {"tool": "apply_filters", "args": {"color": ["Венге", "Коричневый"], "material": ["дерево"], "search": "замковый готический"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "уютное синее кресло до 30000",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кресла", "color": ["Синий"], "material": ["ткань", "кожа"], "search": "уютный", "max_price": 30000}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "винтажный дубовый шкаф недорого",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Шкафы", "material": ["дерево"], "price_level": "budget", "search": "винтаж дуб"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "офисный стол из стекла",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "material": ["стекло"], "search": "офисный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ничего вычурного, классика",
+      "plan": [
+        {"tool": "apply_filters", "args": {"search": "классический сдержанный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-то для арт-галереи дома",
+      "plan": [
+        {"tool": "apply_filters", "args": {"search": "арт галерейный"}}
+      ]
+    },
+
+    {
+      "role": "user",
+      "user": "здравствуйте",
+      "plan": []
+    },
+    {
+      "role": "user",
+      "user": "спасибо большое",
+      "plan": []
+    },
+    {
+      "role": "user",
+      "user": "когда будет доставка",
+      "plan": []
+    },
+    {
+      "role": "user",
+      "user": "позови менеджера",
+      "plan": []
+    },
+    {
+      "role": "user",
+      "user": "оплати картой",
+      "plan": []
+    },
+    {
+      "role": "user",
+      "user": "верни деньги",
+      "plan": []
+    },
+    {
+      "role": "user",
+      "user": "какой у вас адрес",
+      "plan": []
+    },
+    {
+      "role": "user",
+      "user": "доброе утро",
+      "plan": []
+    },
+    {
+      "role": "admin",
+      "user": "привет",
+      "plan": []
+    },
+    {
+      "role": "user",
+      "user": "помоги выбрать",
+      "plan": []
+    },
+
+    {
+      "role": "admin",
+      "user": "пополни остаток белых диванов из дерева на 50",
+      "plan": [
+        {"tool": "update_stock", "args": {
+          "filter": {"category": "Диваны", "color": ["Белый"], "material": ["дерево"]},
+          "operation": "add", "quantity": 50
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "установи остаток всех премиум кресел в 100 штук",
+      "plan": [
+        {"tool": "update_stock", "args": {
+          "filter": {"category": "Кресла", "price_level": "premium"},
+          "operation": "set", "quantity": 100
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "спиши 10 штук всех красных стульев",
+      "plan": [
+        {"tool": "update_stock", "args": {
+          "filter": {"category": "Стулья", "color": ["Красный"]},
+          "operation": "subtract", "quantity": 10
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "обнули остаток столов дороже 200000",
+      "plan": [
+        {"tool": "update_stock", "args": {
+          "filter": {"category": "Столы", "min_price": 200000},
+          "operation": "set", "quantity": 0
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "пополни остаток дивана Альфа на 30",
+      "plan": [
+        {"tool": "update_stock", "args": {
+          "filter": {"product_name": "Альфа"},
+          "operation": "add", "quantity": 30
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "пополни всё что меньше 5 штук на 50",
+      "plan": [
+        {"tool": "update_stock", "args": {
+          "filter": {"in_stock": false},
+          "operation": "set", "quantity": 50
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "добавь 20 кожаных кресел зелёного цвета",
+      "plan": [
+        {"tool": "update_stock", "args": {
+          "filter": {"category": "Кресла", "color": ["Зелёный"], "material": ["кожа"]},
+          "operation": "add", "quantity": 20
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "установи остаток дубовых столов в 25 штук",
+      "plan": [
+        {"tool": "update_stock", "args": {
+          "filter": {"category": "Столы", "material": ["дерево"], "search": "дуб"},
+          "operation": "set", "quantity": 25
+        }}
+      ]
+    },
+
+    {
+      "role": "admin",
+      "user": "сделай скидку 20% на все товары дешевле 60000",
+      "plan": [
+        {"tool": "update_prices", "args": {
+          "filter": {"max_price": 60000},
+          "operation": "discount", "value": 20
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "наценка 15% на все красные шкафы",
+      "plan": [
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Шкафы", "color": ["Красный"]},
+          "operation": "markup", "value": 15
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "скидка 30% на премиум диваны из кожи",
+      "plan": [
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Диваны", "price_level": "premium", "material": ["кожа"]},
+          "operation": "discount", "value": 30
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "установи цену 50000 на все столы из дуба",
+      "plan": [
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Столы", "material": ["дерево"], "search": "дуб"},
+          "operation": "set_price", "value": 50000
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "скидка 50% на всё что в наличии и дешевле 100000",
+      "plan": [
+        {"tool": "update_prices", "args": {
+          "filter": {"in_stock": true, "max_price": 100000},
+          "operation": "discount", "value": 50
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "поставь цену 25000 на белые стулья",
+      "plan": [
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Стулья", "color": ["Белый"]},
+          "operation": "set_price", "value": 25000
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "наценка 10% на все кровати",
+      "plan": [
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Кровати"},
+          "operation": "markup", "value": 10
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "сделай 25% скидку на все мягкие диваны",
+      "plan": [
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Диваны", "material": ["ткань", "кожа"]},
+          "operation": "discount", "value": 25
+        }}
+      ]
+    },
+
+    {
+      "role": "admin",
+      "user": "топ-5 самых продаваемых за неделю",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "week", "group_by": "product", "metric": "units_sold",
+          "sort": "desc", "limit": 5
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "выручка по категориям за месяц",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "month", "group_by": "category", "metric": "revenue", "sort": "desc"
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "какие диваны хуже всего продаются за месяц",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "month", "group_by": "product", "metric": "units_sold",
+          "sort": "asc", "filter": {"category": "Диваны"}
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "сколько заказов было сегодня",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "today", "group_by": "day", "metric": "orders_count"
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "средний чек за неделю по премиум",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "week", "group_by": "day", "metric": "avg_check",
+          "filter": {"price_level": "premium"}
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "выручка по цветам за квартал",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "quarter", "group_by": "color", "metric": "revenue", "sort": "desc"
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "продажи по материалам за год",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "year", "group_by": "material", "metric": "units_sold", "sort": "desc"
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "топ-10 кресел по выручке за месяц",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "month", "group_by": "product", "metric": "revenue",
+          "sort": "desc", "limit": 10, "filter": {"category": "Кресла"}
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "продажи диванов с 1 марта по 1 апреля",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "custom", "from_date": "2026-03-01", "to_date": "2026-04-01",
+          "group_by": "product", "metric": "units_sold",
+          "filter": {"category": "Диваны"}
+        }}
+      ]
+    },
+
+    {
+      "role": "admin",
+      "user": "покажи белые диваны и пополни их остаток на 30",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "color": ["Белый"]}},
+        {"tool": "update_stock", "args": {
+          "filter": {"category": "Диваны", "color": ["Белый"]},
+          "operation": "add", "quantity": 30
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "найди премиум кресла и сделай скидку 25%",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кресла", "price_level": "premium"}},
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Кресла", "price_level": "premium"},
+          "operation": "discount", "value": 25
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "найди все товары до 50000 и сделай наценку 15%",
+      "plan": [
+        {"tool": "apply_filters", "args": {"max_price": 50000}},
+        {"tool": "update_prices", "args": {
+          "filter": {"max_price": 50000},
+          "operation": "markup", "value": 15
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "найди дешёвые столы и сними с продажи",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "price_level": "budget"}},
+        {"tool": "update_stock", "args": {
+          "filter": {"category": "Столы", "price_level": "budget"},
+          "operation": "set", "quantity": 0
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "найди дубовые столы дороже 100000 и сделай скидку 30%",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "material": ["дерево"], "min_price": 100000, "search": "дуб"}},
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Столы", "material": ["дерево"], "min_price": 100000, "search": "дуб"},
+          "operation": "discount", "value": 30
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "сделай 15% скидку на детские кровати и пополни остаток на 40",
+      "plan": [
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Кровати", "search": "детский"},
+          "operation": "discount", "value": 15
+        }},
+        {"tool": "update_stock", "args": {
+          "filter": {"category": "Кровати", "search": "детский"},
+          "operation": "add", "quantity": 40
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "топ-5 диванов за неделю и сделай скидку 20% на все диваны",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "week", "group_by": "product", "metric": "units_sold",
+          "sort": "desc", "limit": 5, "filter": {"category": "Диваны"}
+        }},
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Диваны"},
+          "operation": "discount", "value": 20
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "что хуже всего продаётся за месяц — пополни остаток дешёвых стульев на 50",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "month", "group_by": "product", "metric": "units_sold",
+          "sort": "asc", "limit": 10, "filter": {"category": "Стулья", "price_level": "budget"}
+        }},
+        {"tool": "update_stock", "args": {
+          "filter": {"category": "Стулья", "price_level": "budget"},
+          "operation": "add", "quantity": 50
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "выручка по категориям за месяц и топ-3 диванов за этот же период",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "month", "group_by": "category", "metric": "revenue", "sort": "desc"
+        }},
+        {"tool": "get_sales_analytics", "args": {
+          "period": "month", "group_by": "product", "metric": "revenue",
+          "sort": "desc", "limit": 3, "filter": {"category": "Диваны"}
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "найди премиум диваны и покажи их продажи за квартал",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "price_level": "premium"}},
+        {"tool": "get_sales_analytics", "args": {
+          "period": "quarter", "group_by": "product", "metric": "revenue",
+          "filter": {"category": "Диваны", "price_level": "premium"}
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "найди мягкие диваны до 80000, сделай скидку 20% и пополни остаток на 25",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "material": ["ткань", "кожа"], "max_price": 80000}},
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Диваны", "material": ["ткань", "кожа"], "max_price": 80000},
+          "operation": "discount", "value": 20
+        }},
+        {"tool": "update_stock", "args": {
+          "filter": {"category": "Диваны", "material": ["ткань", "кожа"], "max_price": 80000},
+          "operation": "add", "quantity": 25
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "очисти все кожаные кресла со склада и установи цену 30000",
+      "plan": [
+        {"tool": "update_stock", "args": {
+          "filter": {"category": "Кресла", "material": ["кожа"]},
+          "operation": "set", "quantity": 0
+        }},
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Кресла", "material": ["кожа"]},
+          "operation": "set_price", "value": 30000
+        }}
+      ]
+    },
+
+    {
+      "role": "user",
+      "user": "что-то в стиле Хаяо Миядзаки",
+      "plan": [
+        {"tool": "apply_filters", "args": {"search": "сказочный волшебный пастельный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "интерьер как из Игры престолов",
+      "plan": [
+        {"tool": "apply_filters", "args": {"color": ["Коричневый", "Венге", "Чёрный"], "material": ["дерево"], "search": "средневековый замковый"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что бы взял Стив Джобс в офис",
+      "plan": [
+        {"tool": "apply_filters", "args": {"color": ["Белый", "Чёрный"], "search": "минимализм apple"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "не вычурное и не банальное",
+      "plan": [
+        {"tool": "apply_filters", "args": {"search": "сдержанный качественный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "не люблю минимализм, хочу что-то богатое",
+      "plan": [
+        {"tool": "apply_filters", "args": {"price_level": "premium", "search": "роскошный богатый"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "не банально, но и не дорого",
+      "plan": [
+        {"tool": "apply_filters", "args": {"price_level": "mid", "search": "необычный сдержанный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-нибудь яркое для творческого человека",
+      "plan": [
+        {"tool": "apply_filters", "args": {"color": ["Красный", "Жёлтый", "Зелёный", "Изумрудный", "Розовый"], "search": "креативный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стол на кухню для большой семьи",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "search": "кухонный вместительный обеденный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кресло чтобы провалиться и не вставать",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кресла", "material": ["ткань", "кожа"], "search": "глубокий мягкий ленивый"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "диван чтобы соседи завидовали",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "price_level": "premium", "search": "эффектный статусный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "хочу как в музее современного искусства",
+      "plan": [
+        {"tool": "apply_filters", "args": {"search": "арт авангардный концептуальный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-то для прованса",
+      "plan": [
+        {"tool": "apply_filters", "args": {"color": ["Бежевый", "Белый"], "material": ["дерево", "ткань"], "search": "прованс"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "хочу хюгге",
+      "plan": [
+        {"tool": "apply_filters", "args": {"material": ["ткань", "дерево"], "search": "хюгге уютный скандинавский"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-то для маминого подарка на 8 марта",
+      "plan": [
+        {"tool": "apply_filters", "args": {"color": ["Розовый", "Бежевый"], "search": "женственный подарок"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ничего бабушкиного",
+      "plan": [
+        {"tool": "apply_filters", "args": {"search": "современный молодёжный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-то промышленное, но не холодное",
+      "plan": [
+        {"tool": "apply_filters", "args": {"material": ["металл", "дерево"], "search": "индустриальный тёплый"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стол для коворкинга",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "search": "коворкинг офисный многофункциональный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-то под японский стиль ваби-саби",
+      "plan": [
+        {"tool": "apply_filters", "args": {"material": ["дерево"], "color": ["Бежевый", "Коричневый"], "search": "ваби саби японский"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "хочу диван чтобы реально на нём жить",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "material": ["ткань", "кожа"], "search": "повседневный износостойкий"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-то для просмотра кино с попкорном",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "material": ["ткань", "кожа"], "search": "кинотеатр угловой большой"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стол чтобы рисовать а не есть",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "search": "рабочий чертёжный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "шкаф под винил",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Шкафы", "search": "винил пластинки специальный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-то модное в инстаграмм",
+      "plan": [
+        {"tool": "apply_filters", "args": {"search": "instagram трендовый эстетичный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "хочу что-то типа как у Мади Тейлор Кудой в её лофте",
+      "plan": [
+        {"tool": "apply_filters", "args": {"material": ["металл", "дерево"], "color": ["Серый", "Чёрный"], "search": "лофт индустриальный знаменитость"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "вписать в студию 25 квадратов",
+      "plan": [
+        {"tool": "apply_filters", "args": {"search": "компактный студия трансформер"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кровать как в шикарном отеле",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кровати", "price_level": "premium", "search": "отельный роскошный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-то нейтральное универсальное",
+      "plan": [
+        {"tool": "apply_filters", "args": {"color": ["Бежевый", "Серый", "Белый"], "search": "универсальный нейтральный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стол под старину",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "material": ["дерево"], "search": "состаренный антик ретро"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-то экологичное натуральное",
+      "plan": [
+        {"tool": "apply_filters", "args": {"material": ["дерево", "ткань"], "search": "эко натуральный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кресло для папы под футбол с пивом",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кресла", "material": ["кожа"], "search": "мужской расслабляющий реклайнер"}}
+      ]
+    },
+
+    {
+      "role": "user",
+      "user": "найди диваны и первые 5 в избранное, остальные в корзину",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны"}},
+        {"tool": "add_to_favorites", "args": {"quantifier": "first_n", "n": 5}},
+        {"tool": "add_to_cart", "args": {"quantifier": "remaining"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "очисти избранное и добавь туда первые 3 кресла",
+      "plan": [
+        {"tool": "clear_favorites", "args": {}},
+        {"tool": "apply_filters", "args": {"category": "Кресла"}},
+        {"tool": "add_to_favorites", "args": {"quantifier": "first_n", "n": 3}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди столы из дуба и положи их все в корзину по 2 штуки",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "material": ["дерево"], "search": "дуб"}},
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 2}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди недорогие шкафы, последние 2 в избранное",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Шкафы", "price_level": "budget"}},
+        {"tool": "add_to_favorites", "args": {"quantifier": "last_n", "n": 2}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди детские кровати, добавь все в избранное и в корзину по одной",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кровати", "search": "детский"}},
+        {"tool": "add_to_favorites", "args": {"quantifier": "all"}},
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 1}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди мягкие диваны и убери из избранного все диваны, потом добавь новые",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "material": ["ткань", "кожа"]}},
+        {"tool": "remove_from_favorites", "args": {"filter": {"category": "Диваны"}}},
+        {"tool": "add_to_favorites", "args": {"quantifier": "all"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "удали красные товары из корзины и положи туда первые 3 синих кресла",
+      "plan": [
+        {"tool": "remove_from_cart", "args": {"filter": {"color": ["Красный"]}}},
+        {"tool": "apply_filters", "args": {"category": "Кресла", "color": ["Синий"]}},
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 3}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "почисти корзину и избранное полностью",
+      "plan": [
+        {"tool": "clear_cart", "args": {}},
+        {"tool": "clear_favorites", "args": {}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди кресла из ткани, в корзину 2 штуки, остальные в избранное",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кресла", "material": ["ткань"]}},
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2}},
+        {"tool": "add_to_favorites", "args": {"quantifier": "remaining"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди стулья дешевле 10000, добавь в корзину все по 4 штуки",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Стулья", "max_price": 10000}},
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 4}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди шкафы из стекла и металла, добавь все в избранное",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Шкафы", "material": ["стекло", "металл"]}},
+        {"tool": "add_to_favorites", "args": {"quantifier": "all"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ищу кровать в стиле минимализм до 80к, положи в корзину одну",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кровати", "max_price": 80000, "search": "минимализм"}},
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 1}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди премиум столы и сохрани первые 3 в избранное",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "price_level": "premium"}},
+        {"tool": "add_to_favorites", "args": {"quantifier": "first_n", "n": 3}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "удали все деревянное из корзины и добавь туда металлические столы",
+      "plan": [
+        {"tool": "remove_from_cart", "args": {"filter": {"material": ["дерево"]}}},
+        {"tool": "apply_filters", "args": {"category": "Столы", "material": ["металл"]}},
+        {"tool": "add_to_cart", "args": {"quantifier": "all"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "очисти корзину и сохрани все диваны от 50 до 100к в избранное",
+      "plan": [
+        {"tool": "clear_cart", "args": {}},
+        {"tool": "apply_filters", "args": {"category": "Диваны", "min_price": 50000, "max_price": 100000}},
+        {"tool": "add_to_favorites", "args": {"quantifier": "all"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди кресла Milano, положи 5 штук в корзину",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кресла", "search": "Milano"}},
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 5}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди диваны в наличии, последние 4 в корзину по 2 штуки",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "in_stock": true}},
+        {"tool": "add_to_cart", "args": {"quantifier": "last_n", "n": 4, "quantity": 2}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди венге шкафы, в корзину все по 1 штуке",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Шкафы", "color": ["Венге"]}},
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 1}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-то для офиса до 30 тысяч, добавь все в избранное",
+      "plan": [
+        {"tool": "apply_filters", "args": {"max_price": 30000, "search": "офисный"}},
+        {"tool": "add_to_favorites", "args": {"quantifier": "all"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди уютные кресла и добавь по парочке в корзину",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кресла", "material": ["ткань", "кожа"], "search": "уютный"}},
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 2}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди натуральные шкафы дешевле 40к, в корзину по 2",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Шкафы", "material": ["дерево", "ткань", "кожа"], "max_price": 40000}},
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 2}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди премиум кровати, первую в корзину",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кровати", "price_level": "premium"}},
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 1}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "положи в корзину 3 кресла и 2 стула",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кресла"}},
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 3}},
+        {"tool": "apply_filters", "args": {"category": "Стулья"}},
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди диваны премиум сегмента и сохрани все себе в избранное",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "price_level": "premium"}},
+        {"tool": "add_to_favorites", "args": {"quantifier": "all"}}
+      ]
+    },
+
+    {
+      "role": "admin",
+      "user": "найди диваны от Roche Bobois и сделай скидку 20%",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "search": "Roche Bobois"}},
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Диваны", "search": "Roche Bobois"},
+          "operation": "discount", "value": 20
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "найди все скандинавские шкафы и пополни остаток на 15",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Шкафы", "search": "скандинавский"}},
+        {"tool": "update_stock", "args": {
+          "filter": {"category": "Шкафы", "search": "скандинавский"},
+          "operation": "add", "quantity": 15
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "выручка по столам за неделю, потом сделай 25% скидку на дешёвые",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "week", "group_by": "product", "metric": "revenue",
+          "filter": {"category": "Столы"}
+        }},
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Столы", "price_level": "budget"},
+          "operation": "discount", "value": 25
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "посчитай средний чек за квартал и обнови остаток премиум на 100",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "quarter", "group_by": "day", "metric": "avg_check"
+        }},
+        {"tool": "update_stock", "args": {
+          "filter": {"price_level": "premium"},
+          "operation": "set", "quantity": 100
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "сделай 30% скидку на всё что в наличии и пополни остаток на 20",
+      "plan": [
+        {"tool": "update_prices", "args": {
+          "filter": {"in_stock": true},
+          "operation": "discount", "value": 30
+        }},
+        {"tool": "update_stock", "args": {
+          "filter": {"in_stock": true},
+          "operation": "add", "quantity": 20
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "топ-3 продаваемых кресла за месяц и пополни их остаток на 50",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "month", "group_by": "product", "metric": "units_sold",
+          "sort": "desc", "limit": 3, "filter": {"category": "Кресла"}
+        }},
+        {"tool": "update_stock", "args": {
+          "filter": {"category": "Кресла"},
+          "operation": "add", "quantity": 50
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "найди стеклянные столы дешевле 30к, сделай 40% скидку и установи остаток в 50",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "material": ["стекло"], "max_price": 30000}},
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Столы", "material": ["стекло"], "max_price": 30000},
+          "operation": "discount", "value": 40
+        }},
+        {"tool": "update_stock", "args": {
+          "filter": {"category": "Столы", "material": ["стекло"], "max_price": 30000},
+          "operation": "set", "quantity": 50
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "найди светлые диваны и установи цену 70000 на все",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "color": ["Белый", "Бежевый", "Серый"]}},
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Диваны", "color": ["Белый", "Бежевый", "Серый"]},
+          "operation": "set_price", "value": 70000
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "выручка за сегодня и за неделю",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "today", "group_by": "day", "metric": "revenue"
+        }},
+        {"tool": "get_sales_analytics", "args": {
+          "period": "week", "group_by": "day", "metric": "revenue"
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "сравни продажи диванов и кресел за месяц",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "month", "group_by": "product", "metric": "units_sold",
+          "filter": {"category": "Диваны"}
+        }},
+        {"tool": "get_sales_analytics", "args": {
+          "period": "month", "group_by": "product", "metric": "units_sold",
+          "filter": {"category": "Кресла"}
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "топ продаж за год по цветам",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "year", "group_by": "color", "metric": "units_sold", "sort": "desc"
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "найди все дешёвые шкафы и сделай -50% скидку",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Шкафы", "price_level": "budget"}},
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Шкафы", "price_level": "budget"},
+          "operation": "discount", "value": 50
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "сделай скидку 10% на все и пополни остаток деревянных на 30",
+      "plan": [
+        {"tool": "update_prices", "args": {
+          "filter": {"in_stock": true},
+          "operation": "discount", "value": 10
+        }},
+        {"tool": "update_stock", "args": {
+          "filter": {"material": ["дерево"]},
+          "operation": "add", "quantity": 30
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "посмотри что хуже всего продаётся, потом обнули остатки этой категории",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "month", "group_by": "category", "metric": "units_sold", "sort": "asc", "limit": 3
+        }},
+        {"tool": "update_stock", "args": {
+          "filter": {"price_level": "budget"},
+          "operation": "set", "quantity": 0
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "сделай 5% наценку на премиум кровати и установи остаток в 50",
+      "plan": [
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Кровати", "price_level": "premium"},
+          "operation": "markup", "value": 5
+        }},
+        {"tool": "update_stock", "args": {
+          "filter": {"category": "Кровати", "price_level": "premium"},
+          "operation": "set", "quantity": 50
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "найди дорогие диваны от 200к и сделай скидку 35% перед чёрной пятницей",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "min_price": 200000}},
+        {"tool": "update_prices", "args": {
+          "filter": {"category": "Диваны", "min_price": 200000},
+          "operation": "discount", "value": 35
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "топ-5 цветов по выручке за квартал и пополни белые на 30",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "quarter", "group_by": "color", "metric": "revenue",
+          "sort": "desc", "limit": 5
+        }},
+        {"tool": "update_stock", "args": {
+          "filter": {"color": ["Белый"]},
+          "operation": "add", "quantity": 30
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "сделай -100% скидку на красные стулья (то есть убери из продажи)",
+      "plan": [
+        {"tool": "update_stock", "args": {
+          "filter": {"category": "Стулья", "color": ["Красный"]},
+          "operation": "set", "quantity": 0
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "найди розовые товары, наценка 25%",
+      "plan": [
+        {"tool": "apply_filters", "args": {"color": ["Розовый"]}},
+        {"tool": "update_prices", "args": {
+          "filter": {"color": ["Розовый"]},
+          "operation": "markup", "value": 25
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "сделай 15% скидку на стеклянное и пополни остаток на 10",
+      "plan": [
+        {"tool": "update_prices", "args": {
+          "filter": {"material": ["стекло"]},
+          "operation": "discount", "value": 15
+        }},
+        {"tool": "update_stock", "args": {
+          "filter": {"material": ["стекло"]},
+          "operation": "add", "quantity": 10
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "сравни выручку по материалам за месяц и за год",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "month", "group_by": "material", "metric": "revenue", "sort": "desc"
+        }},
+        {"tool": "get_sales_analytics", "args": {
+          "period": "year", "group_by": "material", "metric": "revenue", "sort": "desc"
+        }}
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "сколько заказов было сегодня, на этой неделе и в этом месяце",
+      "plan": [
+        {"tool": "get_sales_analytics", "args": {
+          "period": "today", "group_by": "day", "metric": "orders_count"
+        }},
+        {"tool": "get_sales_analytics", "args": {
+          "period": "week", "group_by": "day", "metric": "orders_count"
+        }},
+        {"tool": "get_sales_analytics", "args": {
+          "period": "month", "group_by": "day", "metric": "orders_count"
+        }}
+      ]
+    },
+
+    {
+      "role": "user",
+      "user": "по тройке в корзину",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 3}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "положи одного-двух",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "пять штучек этого",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 5}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "троих в корзину разных",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 3}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "по дюжине каждого",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 12}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "положи штук десять",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 10}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "первую штуку добавь",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 1}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "пять разных диванов в корзину",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны"}},
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 5}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "по 2 штуки диванов в корзину",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны"}},
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 2}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "одного и того же 8 штук",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 1, "quantity": 8}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "семёрку первых положи в корзину",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 7}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "первые два дивана по три штуки",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны"}},
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2, "quantity": 3}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "по одной штуке всех в избранное",
+      "plan": [
+        {"tool": "add_to_favorites", "args": {"quantifier": "all"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "три кресла и два стула в корзину",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кресла"}},
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 3}},
+        {"tool": "apply_filters", "args": {"category": "Стулья"}},
+        {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "по две штучки в корзину",
+      "plan": [
+        {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 2}}
+      ]
+    },
+
+    {
+      "role": "user",
+      "user": "стульчики из дерва",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Стулья", "material": ["дерево"]}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что есть из стелянных столов",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "material": ["стекло"]}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "крсные дивны премиум сегмнта",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "color": ["Красный"], "price_level": "premium"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "хм, ну дай мне белых креседл",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кресла", "color": ["Белый"]}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ну ка покажи мне там диваны кожаные",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "material": ["кожа"]}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "столики до 20",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "max_price": 20000}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "хочу шкафчик небольшой бюджетный",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Шкафы", "price_level": "budget", "search": "компактный"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ну штуки там какие-нибудь чёрные есть?",
+      "plan": [
+        {"tool": "apply_filters", "args": {"color": ["Чёрный"]}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "от 30 до 50 диваны",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Диваны", "min_price": 30000, "max_price": 50000}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "велюровое чё-нибудь",
+      "plan": [
+        {"tool": "apply_filters", "args": {"material": ["ткань"], "search": "велюр"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кровать там красивая",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Кровати", "search": "красивый"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что то типа изумрудного",
+      "plan": [
+        {"tool": "apply_filters", "args": {"color": ["Изумрудный", "Зелёный"]}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "столы дшывые",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Столы", "price_level": "budget"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "чо есть из ореховых шкафчиков",
+      "plan": [
+        {"tool": "apply_filters", "args": {"category": "Шкафы", "color": ["Орех"]}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ничё типа не сильно дорогого",
+      "plan": [
+        {"tool": "apply_filters", "args": {"price_level": "mid"}}
+      ]
+    },
+
+    {
+      "role": "user",
+      "user": "удали из избранного то что от Milano",
+      "plan": [
+        {"tool": "remove_from_favorites", "args": {"filter": {"product_name": "Milano"}}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "выкинь из корзины кресла Альфа",
+      "plan": [
+        {"tool": "remove_from_cart", "args": {"filter": {"product_name": "Альфа"}}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "убери из избранного всё чёрное и венге",
+      "plan": [
+        {"tool": "remove_from_favorites", "args": {"filter": {"color": ["Чёрный", "Венге"]}}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "удали кожаные кресла из корзины",
+      "plan": [
+        {"tool": "remove_from_cart", "args": {"filter": {"category": "Кресла", "material": ["кожа"]}}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "убери из избранного твёрдую мебель",
+      "plan": [
+        {"tool": "remove_from_favorites", "args": {"filter": {"material": ["дерево", "металл"]}}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "очисти полностью избранное и корзину",
+      "plan": [
+        {"tool": "clear_favorites", "args": {}},
+        {"tool": "clear_cart", "args": {}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "избавься от всех столов в корзине",
+      "plan": [
+        {"tool": "remove_from_cart", "args": {"filter": {"category": "Столы"}}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "выкини всё из избранного",
+      "plan": [
+        {"tool": "clear_favorites", "args": {}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "убери диваны из избранного и добавь обратно мягкие",
+      "plan": [
+        {"tool": "remove_from_favorites", "args": {"filter": {"category": "Диваны"}}},
+        {"tool": "apply_filters", "args": {"category": "Диваны", "material": ["ткань", "кожа"]}},
+        {"tool": "add_to_favorites", "args": {"quantifier": "all"}}
+      ]
+    },
+    {
+      "role": "user",
+      "user": "очисти корзину и сохрани все мягкие диваны в избранное",
+      "plan": [
+        {"tool": "clear_cart", "args": {}},
+        {"tool": "apply_filters", "args": {"category": "Диваны", "material": ["ткань", "кожа"]}},
+        {"tool": "add_to_favorites", "args": {"quantifier": "all"}}
+      ]
+    },
+    {"role": "user", "user": "закажи пиццу маргариту с двойным сыром", "plan": []},
+    {"role": "user", "user": "какая погода в Москве на завтра", "plan": []},
+    {"role": "user", "user": "вызови такси до Шереметьево", "plan": []},
+    {"role": "user", "user": "переведи 5000 рублей маме на карту", "plan": []},
+    {"role": "user", "user": "расскажи свежий анекдот", "plan": []},
+    {"role": "user", "user": "сколько будет 17 умножить на 23", "plan": []},
+    {"role": "user", "user": "забронируй столик в ресторане на двоих", "plan": []},
+    {"role": "user", "user": "покажи последние новости спорта", "plan": []},
+    {"role": "user", "user": "переведи фразу hello world на русский", "plan": []},
+    {"role": "user", "user": "как доехать до центра города", "plan": []},
+    {"role": "user", "user": "поставь будильник на 7 утра", "plan": []},
+    {"role": "user", "user": "купи авиабилет в Сочи на следующие выходные", "plan": []},
+    {"role": "user", "user": "найди мне врача терапевта поблизости", "plan": []},
+    {"role": "user", "user": "напиши код на Python для сортировки массива", "plan": []},
+    {"role": "user", "user": "в чём смысл жизни", "plan": []},
+
+    {"role": "admin", "user": "повысь сток белых диванов на 30 и сделай скидку 15% на них же",
+     "plan": [
+       {"tool": "update_stock", "args": {"filter": {"category": "Диваны", "color": ["Белый"]}, "operation": "add", "quantity": 30}},
+       {"tool": "update_prices", "args": {"filter": {"category": "Диваны", "color": ["Белый"]}, "operation": "discount", "value": 15}}
+     ]},
+    {"role": "admin", "user": "спиши 50 штук всех бюджетных стульев и подними цены на премиум на 20%",
+     "plan": [
+       {"tool": "update_stock", "args": {"filter": {"category": "Стулья", "price_level": "budget"}, "operation": "subtract", "quantity": 50}},
+       {"tool": "update_prices", "args": {"filter": {"category": "Стулья", "price_level": "premium"}, "operation": "markup", "value": 20}}
+     ]},
+    {"role": "admin", "user": "обнови сток кожаных кресел в 100 штук и поставь цену 80000",
+     "plan": [
+       {"tool": "update_stock", "args": {"filter": {"category": "Кресла", "material": ["кожа"]}, "operation": "set", "quantity": 100}},
+       {"tool": "update_prices", "args": {"filter": {"category": "Кресла", "material": ["кожа"]}, "operation": "set_price", "value": 80000}}
+     ]},
+    {"role": "admin", "user": "пополни остаток деревянных столов на 25 и сделай скидку 10%",
+     "plan": [
+       {"tool": "update_stock", "args": {"filter": {"category": "Столы", "material": ["дерево"]}, "operation": "add", "quantity": 25}},
+       {"tool": "update_prices", "args": {"filter": {"category": "Столы", "material": ["дерево"]}, "operation": "discount", "value": 10}}
+     ]},
+    {"role": "admin", "user": "пополни сток шкафов на 40 и покажи топ-5 по выручке за месяц",
+     "plan": [
+       {"tool": "update_stock", "args": {"filter": {"category": "Шкафы"}, "operation": "add", "quantity": 40}},
+       {"tool": "get_sales_analytics", "args": {"period": "month", "group_by": "product", "metric": "revenue", "sort": "desc", "limit": 5, "filter": {"category": "Шкафы"}}}
+     ]},
+    {"role": "admin", "user": "спиши 20 штук кроватей и посмотри сколько продали за неделю",
+     "plan": [
+       {"tool": "update_stock", "args": {"filter": {"category": "Кровати"}, "operation": "subtract", "quantity": 20}},
+       {"tool": "get_sales_analytics", "args": {"period": "week", "group_by": "product", "metric": "units_sold", "filter": {"category": "Кровати"}}}
+     ]},
+    {"role": "admin", "user": "установи остаток зелёных кресел в 50 и аналитика по цветам за квартал",
+     "plan": [
+       {"tool": "update_stock", "args": {"filter": {"category": "Кресла", "color": ["Зелёный"]}, "operation": "set", "quantity": 50}},
+       {"tool": "get_sales_analytics", "args": {"period": "quarter", "group_by": "color", "metric": "revenue", "filter": {"category": "Кресла"}}}
+     ]},
+    {"role": "admin", "user": "пополни всё что закончилось на 100 и общая выручка за год",
+     "plan": [
+       {"tool": "update_stock", "args": {"filter": {"in_stock": false}, "operation": "set", "quantity": 100}},
+       {"tool": "get_sales_analytics", "args": {"period": "year", "group_by": "category", "metric": "revenue"}}
+     ]},
+    {"role": "admin", "user": "сделай скидку 25% на все диваны и покажи аналитику продаж за квартал",
+     "plan": [
+       {"tool": "update_prices", "args": {"filter": {"category": "Диваны"}, "operation": "discount", "value": 25}},
+       {"tool": "get_sales_analytics", "args": {"period": "quarter", "group_by": "product", "metric": "revenue", "filter": {"category": "Диваны"}}}
+     ]},
+    {"role": "admin", "user": "наценка 30% на премиум столы и топ-10 столов по выручке за месяц",
+     "plan": [
+       {"tool": "update_prices", "args": {"filter": {"category": "Столы", "price_level": "premium"}, "operation": "markup", "value": 30}},
+       {"tool": "get_sales_analytics", "args": {"period": "month", "group_by": "product", "metric": "revenue", "sort": "desc", "limit": 10, "filter": {"category": "Столы"}}}
+     ]},
+    {"role": "admin", "user": "топ-5 диванов по выручке за месяц и общая аналитика по категориям",
+     "plan": [
+       {"tool": "get_sales_analytics", "args": {"period": "month", "group_by": "product", "metric": "revenue", "sort": "desc", "limit": 5, "filter": {"category": "Диваны"}}},
+       {"tool": "get_sales_analytics", "args": {"period": "month", "group_by": "category", "metric": "revenue"}}
+     ]},
+    {"role": "admin", "user": "продажи за неделю по дням и средний чек за месяц",
+     "plan": [
+       {"tool": "get_sales_analytics", "args": {"period": "week", "group_by": "day", "metric": "units_sold"}},
+       {"tool": "get_sales_analytics", "args": {"period": "month", "group_by": "category", "metric": "avg_check"}}
+     ]},
+
+    {"role": "user", "user": "ищу что-то в стиле бохо, цвет тёплый, материалы натуральные",
+     "plan": [{"tool": "apply_filters", "args": {"color": ["Бежевый", "Коричневый"], "material": ["дерево", "ткань"], "search": "бохо"}}]},
+    {"role": "user", "user": "японский минимализм для спальни",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кровати", "color": ["Бежевый", "Белый"], "material": ["дерево"], "search": "японский минимализм"}}]},
+    {"role": "user", "user": "уютно по-скандинавски, светлое дерево",
+     "plan": [{"tool": "apply_filters", "args": {"color": ["Белый", "Бежевый"], "material": ["дерево", "ткань"], "search": "скандинавский хюгге"}}]},
+    {"role": "user", "user": "тёмный готический шкаф",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Шкафы", "color": ["Чёрный", "Венге"], "material": ["дерево"], "search": "готика"}}]},
+    {"role": "user", "user": "стиль индустриальный лофт, металл и бетон",
+     "plan": [{"tool": "apply_filters", "args": {"color": ["Серый", "Чёрный"], "material": ["металл", "дерево"], "search": "индустриальный лофт"}}]},
+    {"role": "user", "user": "элегантно в стиле арт-деко",
+     "plan": [{"tool": "apply_filters", "args": {"color": ["Чёрный", "Изумрудный"], "material": ["дерево", "кожа"], "search": "арт-деко элегантный"}}]},
+    {"role": "user", "user": "викторианский стол из тёмного дерева",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "color": ["Венге", "Коричневый"], "material": ["дерево"], "search": "викторианский"}}]},
+    {"role": "user", "user": "кресло в стиле sci-fi футуристичное",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла", "color": ["Серый", "Чёрный"], "material": ["металл", "пластик"], "search": "футуристический sci-fi"}}]},
+    {"role": "user", "user": "эко-стиль натуральные материалы для кухни",
+     "plan": [{"tool": "apply_filters", "args": {"color": ["Бежевый", "Зелёный"], "material": ["дерево"], "search": "эко натуральный кухня"}}]},
+    {"role": "user", "user": "в восточном стиле с резьбой",
+     "plan": [{"tool": "apply_filters", "args": {"color": ["Коричневый", "Венге"], "material": ["дерево"], "search": "восточный резьба"}}]},
+    {"role": "user", "user": "средиземноморский стиль голубое дерево",
+     "plan": [{"tool": "apply_filters", "args": {"color": ["Синий", "Белый"], "material": ["дерево"], "search": "средиземноморский"}}]},
+    {"role": "user", "user": "американское ретро 50х",
+     "plan": [{"tool": "apply_filters", "args": {"color": ["Красный", "Бежевый"], "material": ["ткань", "дерево"], "search": "ретро американский винтаж"}}]},
+
+    {"_comment": "Bug-1 patches: «N <category> в корзину» без явного admin-verb. Учим модель не путать с update_stock."},
+    {"role": "user", "user": "5 диванов в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 5}}]},
+    {"role": "user", "user": "10 шкафов в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Шкафы"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 10}}]},
+    {"role": "user", "user": "в корзину 6 столов",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 6}}]},
+    {"role": "user", "user": "в корзину 4 кровати",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кровати"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 4}}]},
+    {"role": "user", "user": "купи мне 5 столов",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 5}}]},
+    {"role": "user", "user": "купи 3 кресла",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 3}}]},
+    {"role": "user", "user": "положи 4 кровати в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кровати"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 4}}]},
+    {"role": "user", "user": "возьму 2 шкафа",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Шкафы"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2}}]},
+    {"role": "user", "user": "хочу 3 стула в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Стулья"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 3}}]},
+    {"role": "user", "user": "найди диваны до 80000, 5 в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "max_price": 80000}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 5}}]},
+    {"role": "user", "user": "найди шкафы белые, 3 в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Шкафы", "color": ["Белый"]}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 3}}]},
+    {"role": "user", "user": "найди кресла из ткани, 4 в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла", "material": ["ткань"]}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 4}}]},
+
+    {"_comment": "Bug-1 quantity-disambiguation: «N <cat> ... по K штук» → first_n=N + quantity=K"},
+    {"role": "user", "user": "5 диванов в корзину по 2 штуки",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 5, "quantity": 2}}]},
+    {"role": "user", "user": "найди столы и 3 в корзину по 4 штуки",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 3, "quantity": 4}}]},
+
+    {"_comment": "Bug-1 negative anchors: explicit admin verbs (пополни/уменьши/обнови) MUST stay update_stock — anti-forgetting."},
+    {"role": "admin", "user": "пополни остатки на 5 диванов",
+     "plan": [{"tool": "update_stock", "args": {"filter": {"category": "Диваны"}, "operation": "add", "quantity": 5}}]},
+    {"role": "admin", "user": "уменьши остаток на 5 шкафов",
+     "plan": [{"tool": "update_stock", "args": {"filter": {"category": "Шкафы"}, "operation": "subtract", "quantity": 5}}]},
+    {"role": "admin", "user": "поставь остаток 10 для всех кресел",
+     "plan": [{"tool": "update_stock", "args": {"filter": {"category": "Кресла"}, "operation": "set", "quantity": 10}}]},
+
+    {"_comment": "Bug-2 patches: «не дороже X» / «не больше X» = max_price filter (NOT admin discount). Critical — model confused these with update_prices."},
+    {"role": "user", "user": "столы не дороже 50000",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "max_price": 50000}}]},
+    {"role": "user", "user": "найди диваны не дороже 80000",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "max_price": 80000}}]},
+    {"role": "user", "user": "кресла не больше 30000",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла", "max_price": 30000}}]},
+    {"role": "user", "user": "шкафы не дороже 100к",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Шкафы", "max_price": 100000}}]},
+    {"role": "user", "user": "кровати не выше 60000",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кровати", "max_price": 60000}}]},
+    {"role": "user", "user": "стулья не более 5000",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Стулья", "max_price": 5000}}]},
+    {"role": "user", "user": "найди что-нибудь не дешевле 50000",
+     "plan": [{"tool": "apply_filters", "args": {"min_price": 50000}}]},
+    {"role": "user", "user": "столы не меньше 10000 и не больше 50000",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "min_price": 10000, "max_price": 50000}}]},
+
+    {"_comment": "Bug-3 patches: «бесплатно» / «за 0» = max_price=0 user filter (NOT admin set_price=0). CRITICAL — model was setting prices to 0!"},
+    {"role": "user", "user": "диваны бесплатно",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "max_price": 0}}]},
+    {"role": "user", "user": "столы за 0 рублей",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "max_price": 0}}]},
+    {"role": "user", "user": "найди мне что-нибудь бесплатное",
+     "plan": [{"tool": "apply_filters", "args": {"max_price": 0}}]},
+    {"role": "user", "user": "есть ли товары за 0",
+     "plan": [{"tool": "apply_filters", "args": {"max_price": 0}}]},
+    {"role": "user", "user": "покажи кресла бесплатные",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла", "max_price": 0}}]},
+
+    {"_comment": "Bug-4 patches: «по N штук» в 3+ step plan — НЕ должно быть update_stock между add_to_favorites и add_to_cart. Anti-confusion."},
+    {"role": "user", "user": "найди диваны кожаные, в избранное все, и в корзину по 4 штуки",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "material": ["кожа"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 4}}]},
+    {"role": "user", "user": "найди кресла, в избранное все, в корзину по 2 штуки",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла"}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 2}}]},
+    {"role": "user", "user": "столы из дерева в избранное и в корзину по 3 штуки",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "material": ["дерево"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 3}}]},
+    {"role": "user", "user": "найди шкафы белые, добавь в избранное, в корзину по 5 штук",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Шкафы", "color": ["Белый"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 5}}]},
+    {"role": "user", "user": "найди стулья дешёвые, в избранное все, и в корзину по 6 штук",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Стулья", "price_level": "budget"}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 6}}]},
+    {"role": "user", "user": "кровати премиум, в избранное все, и в корзину по 1 штуке",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кровати", "price_level": "premium"}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 1}}]},
+
+    {"_comment": "Bug-5 patches: conversational corrections — last mention wins («X, нет, Y» / «X, точнее Y»)."},
+    {"role": "user", "user": "найди диваны, нет, кресла",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла"}}]},
+    {"role": "user", "user": "хочу столы из дерева, точнее из стекла",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "material": ["стекло"]}}]},
+    {"role": "user", "user": "шкафы белые, ой не белые а чёрные",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Шкафы", "color": ["Чёрный"]}}]},
+    {"role": "user", "user": "покажи кровати, нет, диваны до 50000",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "max_price": 50000}}]},
+    {"role": "user", "user": "найди кресла зелёные, точнее синие",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла", "color": ["Синий"]}}]},
+
+    {"_comment": "Bug-6 patches: specific product_ids — «товары 1, 2, 3» / «id 7 и 9» → product_ids array (NOT update_stock)."},
+    {"role": "user", "user": "добавь товары 1, 2, 3 в корзину",
+     "plan": [{"tool": "add_to_cart", "args": {"quantifier": "specific", "product_ids": [1, 2, 3]}}]},
+    {"role": "user", "user": "положи в корзину товары с id 5 и 7",
+     "plan": [{"tool": "add_to_cart", "args": {"quantifier": "specific", "product_ids": [5, 7]}}]},
+    {"role": "user", "user": "положи в избранное id 7 и 9",
+     "plan": [{"tool": "add_to_favorites", "args": {"quantifier": "specific", "product_ids": [7, 9]}}]},
+    {"role": "user", "user": "добавь товары 4, 5, 6 в избранное",
+     "plan": [{"tool": "add_to_favorites", "args": {"quantifier": "specific", "product_ids": [4, 5, 6]}}]},
+    {"role": "user", "user": "купи товар номер 12",
+     "plan": [{"tool": "add_to_cart", "args": {"quantifier": "specific", "product_ids": [12]}}]},
+    {"role": "user", "user": "положи в корзину 1, 3, 5 по 2 штуки",
+     "plan": [{"tool": "add_to_cart", "args": {"quantifier": "specific", "product_ids": [1, 3, 5], "quantity": 2}}]},
+
+    {"_comment": "Bug-7 patches: Russian colloquial money — «за пятёрку» = «дешевле 5к» (max_price), не «от 5к» (min_price)."},
+    {"role": "user", "user": "хочу диванчик за пятёрку",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "max_price": 5000}}]},
+    {"role": "user", "user": "найди стол за десятку",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "max_price": 10000}}]},
+    {"role": "user", "user": "кресло тыщ за 30",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла", "max_price": 30000}}]},
+    {"role": "user", "user": "найди мне крутую кровать тыщ за 80",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кровати", "max_price": 80000}}]},
+
+    {"_comment": "Bug-3 EXTRA: more surface forms for free (даром/халява/нулёвый/без денег/по нулям)."},
+    {"role": "user", "user": "найди столы даром",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "max_price": 0}}]},
+    {"role": "user", "user": "шкафы даром какие есть",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Шкафы", "max_price": 0}}]},
+    {"role": "user", "user": "что-нибудь халявное",
+     "plan": [{"tool": "apply_filters", "args": {"max_price": 0}}]},
+    {"role": "user", "user": "найди халявные диваны",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "max_price": 0}}]},
+    {"role": "user", "user": "кровати на халяву",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кровати", "max_price": 0}}]},
+    {"role": "user", "user": "стулья по нулям",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Стулья", "max_price": 0}}]},
+    {"role": "user", "user": "найди шкафы по нулю",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Шкафы", "max_price": 0}}]},
+    {"role": "user", "user": "диваны за ноль",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "max_price": 0}}]},
+    {"role": "user", "user": "кресла за ноль рублей",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла", "max_price": 0}}]},
+    {"role": "user", "user": "покажи нулёвые товары",
+     "plan": [{"tool": "apply_filters", "args": {"max_price": 0}}]},
+    {"role": "user", "user": "ищу кровать без денег",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кровати", "max_price": 0}}]},
+    {"role": "user", "user": "столы бесплатные есть",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "max_price": 0}}]},
+    {"role": "user", "user": "стол даром",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "max_price": 0}}]},
+    {"role": "user", "user": "что есть бесплатного",
+     "plan": [{"tool": "apply_filters", "args": {"max_price": 0}}]},
+    {"role": "user", "user": "найди мне кресло за 0 рублей",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла", "max_price": 0}}]},
+    {"role": "user", "user": "товары халявные покажи",
+     "plan": [{"tool": "apply_filters", "args": {"max_price": 0}}]},
+    {"role": "user", "user": "хочу диван бесплатно",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "max_price": 0}}]},
+    {"role": "user", "user": "шкаф за 0",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Шкафы", "max_price": 0}}]},
+    {"role": "user", "user": "кровать на шару",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кровати", "max_price": 0}}]},
+    {"role": "user", "user": "диваны нулёвые",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "max_price": 0}}]},
+
+    {"_comment": "Bug-3 ANCHORS: explicit admin verbs for price changes MUST stay update_prices (anti-forgetting contrast). Schema requires value>0 — using minimal price 100 to maintain admin contrast."},
+    {"role": "admin", "user": "обнови цену диванов до 100",
+     "plan": [{"tool": "update_prices", "args": {"filter": {"category": "Диваны"}, "operation": "set_price", "value": 100}}]},
+    {"role": "admin", "user": "поставь цену кресел в 100",
+     "plan": [{"tool": "update_prices", "args": {"filter": {"category": "Кресла"}, "operation": "set_price", "value": 100}}]},
+    {"role": "admin", "user": "сделай скидку 90% на все столы",
+     "plan": [{"tool": "update_prices", "args": {"filter": {"category": "Столы"}, "operation": "discount", "value": 90}}]},
+    {"role": "admin", "user": "сбрось цены кроватей до 500",
+     "plan": [{"tool": "update_prices", "args": {"filter": {"category": "Кровати"}, "operation": "set_price", "value": 500}}]},
+    {"role": "admin", "user": "установи цену 1000 для шкафов",
+     "plan": [{"tool": "update_prices", "args": {"filter": {"category": "Шкафы"}, "operation": "set_price", "value": 1000}}]},
+
+    {"_comment": "Bug-4 EXTRA: 3-step plans filter+favorites_all+cart with diverse colors/materials/searches/quantifiers."},
+    {"role": "user", "user": "найди диваны зелёные, в избранное все, в корзину по 2",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "color": ["Зелёный"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 2}}]},
+    {"role": "user", "user": "найди стулья, в фавориты все, в корзину по 3 штуки",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Стулья"}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 3}}]},
+    {"role": "user", "user": "кровати премиум в избранное все, в корзину по 1",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кровати", "price_level": "premium"}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 1}}]},
+    {"role": "user", "user": "шкафы чёрные в фавориты, в корзину по 4",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Шкафы", "color": ["Чёрный"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 4}}]},
+    {"role": "user", "user": "найди кресла из ткани, добавь все в избранное и по 2 в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла", "material": ["ткань"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 2}}]},
+    {"role": "user", "user": "столы стеклянные в фавориты все, первые 3 в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "material": ["стекло"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 3}}]},
+    {"role": "user", "user": "найди диваны до 100к, в избранное все, 3 в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "max_price": 100000}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 3}}]},
+    {"role": "user", "user": "кресла бежевые в избранное и 2 в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла", "color": ["Бежевый"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2}}]},
+    {"role": "user", "user": "найди столы, все в фавориты, первые 3 в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы"}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 3}}]},
+    {"role": "user", "user": "шкафы из дерева, все в избранное, в корзину 4 штуки",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Шкафы", "material": ["дерево"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 4}}]},
+    {"role": "user", "user": "стулья премиум все в фавориты, 2 в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Стулья", "price_level": "premium"}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2}}]},
+    {"role": "user", "user": "кровати белые в избранное, в корзину 5",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кровати", "color": ["Белый"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 5}}]},
+    {"role": "user", "user": "диваны синие до 80к, всё в избранное, по 1 штуке в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "color": ["Синий"], "max_price": 80000}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 1}}]},
+    {"role": "user", "user": "найди кресла мягкие, в фавы все, в корзину 3",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла", "search": "мягкие"}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 3}}]},
+    {"role": "user", "user": "столы для офиса в избранное, 2 в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "search": "офисный"}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2}}]},
+    {"role": "user", "user": "шкафы вместительные в избранное все, по 1 в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Шкафы", "search": "вместительный"}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 1}}]},
+    {"role": "user", "user": "найди кровати с ящиками, в фавы все, 2 в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кровати", "search": "ящик"}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2}}]},
+    {"role": "user", "user": "стулья деревянные все в фавориты и 4 в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Стулья", "material": ["дерево"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 4}}]},
+    {"role": "user", "user": "диваны угловые в избранное все, в корзину по 1",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "search": "угловой"}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 1}}]},
+    {"role": "user", "user": "найди кресла Egg в избранное все, 1 в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла", "search": "Egg"}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 1}}]},
+
+    {"_comment": "Bug-6 EXTRA: more product_ids surface forms covering ALL user tools (cart/favorites, add/remove)."},
+    {"role": "user", "user": "товары 5 и 8 в корзину",
+     "plan": [{"tool": "add_to_cart", "args": {"quantifier": "specific", "product_ids": [5, 8]}}]},
+    {"role": "user", "user": "id 3 в избранное",
+     "plan": [{"tool": "add_to_favorites", "args": {"quantifier": "specific", "product_ids": [3]}}]},
+    {"role": "user", "user": "положи в корзину id 11 и 12",
+     "plan": [{"tool": "add_to_cart", "args": {"quantifier": "specific", "product_ids": [11, 12]}}]},
+    {"role": "user", "user": "продукт номер 9 в фавориты",
+     "plan": [{"tool": "add_to_favorites", "args": {"quantifier": "specific", "product_ids": [9]}}]},
+    {"role": "user", "user": "товар 7 положи в корзину",
+     "plan": [{"tool": "add_to_cart", "args": {"quantifier": "specific", "product_ids": [7]}}]},
+    {"role": "user", "user": "положи в корзину id 1, 2, 3",
+     "plan": [{"tool": "add_to_cart", "args": {"quantifier": "specific", "product_ids": [1, 2, 3]}}]},
+    {"role": "user", "user": "добавь в избранное товары 4 и 5",
+     "plan": [{"tool": "add_to_favorites", "args": {"quantifier": "specific", "product_ids": [4, 5]}}]},
+    {"role": "user", "user": "положи в избранное id 6 и 8",
+     "plan": [{"tool": "add_to_favorites", "args": {"quantifier": "specific", "product_ids": [6, 8]}}]},
+    {"role": "user", "user": "продукт 15 в корзину 3 штуки",
+     "plan": [{"tool": "add_to_cart", "args": {"quantifier": "specific", "product_ids": [15], "quantity": 3}}]},
+    {"role": "user", "user": "товар номер 22 в избранное",
+     "plan": [{"tool": "add_to_favorites", "args": {"quantifier": "specific", "product_ids": [22]}}]},
+    {"role": "user", "user": "положи в корзину id 5 пожалуйста",
+     "plan": [{"tool": "add_to_cart", "args": {"quantifier": "specific", "product_ids": [5]}}]},
+    {"role": "user", "user": "положи 11 и 14 в избранное",
+     "plan": [{"tool": "add_to_favorites", "args": {"quantifier": "specific", "product_ids": [11, 14]}}]},
+    {"role": "user", "user": "товары с номерами 3 и 7 в корзину",
+     "plan": [{"tool": "add_to_cart", "args": {"quantifier": "specific", "product_ids": [3, 7]}}]},
+    {"role": "user", "user": "id 100 в избранное",
+     "plan": [{"tool": "add_to_favorites", "args": {"quantifier": "specific", "product_ids": [100]}}]},
+    {"role": "user", "user": "продукт под id 5 в корзину 2 штуки",
+     "plan": [{"tool": "add_to_cart", "args": {"quantifier": "specific", "product_ids": [5], "quantity": 2}}]},
+    {"role": "user", "user": "товары 1, 2, 3, 4 в корзину",
+     "plan": [{"tool": "add_to_cart", "args": {"quantifier": "specific", "product_ids": [1, 2, 3, 4]}}]},
+    {"role": "user", "user": "id 17 в избранное",
+     "plan": [{"tool": "add_to_favorites", "args": {"quantifier": "specific", "product_ids": [17]}}]},
+    {"role": "user", "user": "товар 8 положи в корзину",
+     "plan": [{"tool": "add_to_cart", "args": {"quantifier": "specific", "product_ids": [8]}}]},
+    {"role": "user", "user": "положи в корзину 3, 6, 9",
+     "plan": [{"tool": "add_to_cart", "args": {"quantifier": "specific", "product_ids": [3, 6, 9]}}]},
+    {"role": "user", "user": "id 21 и 22 в фавориты",
+     "plan": [{"tool": "add_to_favorites", "args": {"quantifier": "specific", "product_ids": [21, 22]}}]},
+
+    {"_comment": "Bug-7 EXTRA: full slang dictionary clean (десятка/двадцатка/тридцатка/полтинник/червонец/сотня) — NOT штука (qty noise)."},
+    {"role": "user", "user": "кресло за десятку",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла", "max_price": 10000}}]},
+    {"role": "user", "user": "стол за двадцатку",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "max_price": 20000}}]},
+    {"role": "user", "user": "шкаф за полтинник",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Шкафы", "max_price": 50000}}]},
+    {"role": "user", "user": "стул за червонец",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Стулья", "max_price": 10000}}]},
+    {"role": "user", "user": "кровать за сотню",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кровати", "max_price": 100000}}]},
+    {"role": "user", "user": "найди диваны до пятёрки",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "max_price": 5000}}]},
+    {"role": "user", "user": "столы дешевле десятки",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "max_price": 10000}}]},
+    {"role": "user", "user": "шкафы не дороже двадцатки",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Шкафы", "max_price": 20000}}]},
+    {"role": "user", "user": "диваны до сотни",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "max_price": 100000}}]},
+    {"role": "user", "user": "кресла за тридцатку",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла", "max_price": 30000}}]},
+    {"role": "user", "user": "хочу столик за червонец",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "max_price": 10000}}]},
+    {"role": "user", "user": "ищу кровать в районе сотни",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кровати", "max_price": 100000}}]},
+    {"role": "user", "user": "найди столы дешевле двадцатки",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "max_price": 20000}}]},
+    {"role": "user", "user": "диваны под сотню",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "max_price": 100000}}]},
+    {"role": "user", "user": "стулья за десятку",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Стулья", "max_price": 10000}}]},
+    {"role": "user", "user": "кресла до полтинника",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла", "max_price": 50000}}]},
+    {"role": "user", "user": "найди диваны за полтинник",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "max_price": 50000}}]},
+    {"role": "user", "user": "ищу шкаф за тридцатку",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Шкафы", "max_price": 30000}}]},
+    {"role": "user", "user": "стол до червонца",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "max_price": 10000}}]},
+    {"role": "user", "user": "кровать в сотню",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кровати", "max_price": 100000}}]},
+
+    {"_comment": "MULTISTEP-EXTRA: complex 4-5 step plans — clear+filter+fav+cart, double-filter, mixed operations. Critical for robust planning."},
+    {"role": "user", "user": "почисти корзину, найди диваны до 50000, в избранное все, 2 в корзину",
+     "plan": [{"tool": "clear_cart", "args": {}}, {"tool": "apply_filters", "args": {"category": "Диваны", "max_price": 50000}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2}}]},
+    {"role": "user", "user": "очисти избранное, найди столы из дерева, в избранное все, в корзину 1",
+     "plan": [{"tool": "clear_favorites", "args": {}}, {"tool": "apply_filters", "args": {"category": "Столы", "material": ["дерево"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 1}}]},
+    {"role": "user", "user": "почисти корзину, найди стулья деревянные, в избранное все, первые 4 в корзину",
+     "plan": [{"tool": "clear_cart", "args": {}}, {"tool": "apply_filters", "args": {"category": "Стулья", "material": ["дерево"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 4}}]},
+    {"role": "user", "user": "найди кресла зелёные, в избранное, потом найди диваны синие, тоже в избранное",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кресла", "color": ["Зелёный"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "apply_filters", "args": {"category": "Диваны", "color": ["Синий"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}]},
+    {"role": "user", "user": "найди столы стеклянные, 2 в корзину, потом найди стулья, тоже 2 в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "material": ["стекло"]}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2}}, {"tool": "apply_filters", "args": {"category": "Стулья"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2}}]},
+    {"role": "user", "user": "очисти корзину, положи товары 5 и 7 в корзину, найди столы, 2 в корзину",
+     "plan": [{"tool": "clear_cart", "args": {}}, {"tool": "add_to_cart", "args": {"quantifier": "specific", "product_ids": [5, 7]}}, {"tool": "apply_filters", "args": {"category": "Столы"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2}}]},
+    {"role": "user", "user": "очисти корзину, найди диваны зелёные премиум, в избранное все, по 1 в корзину",
+     "plan": [{"tool": "clear_cart", "args": {}}, {"tool": "apply_filters", "args": {"category": "Диваны", "color": ["Зелёный"], "price_level": "premium"}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "all", "quantity": 1}}]},
+    {"role": "user", "user": "очисти всё, найди шкафы белые, в избранное все, 3 в корзину",
+     "plan": [{"tool": "clear_cart", "args": {}}, {"tool": "clear_favorites", "args": {}}, {"tool": "apply_filters", "args": {"category": "Шкафы", "color": ["Белый"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 3}}]},
+    {"role": "user", "user": "почисти корзину и избранное, найди диваны до 100к, всё в избранное и 2 в корзину",
+     "plan": [{"tool": "clear_cart", "args": {}}, {"tool": "clear_favorites", "args": {}}, {"tool": "apply_filters", "args": {"category": "Диваны", "max_price": 100000}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2}}]},
+    {"role": "user", "user": "найди столы стеклянные в фавориты все, потом стулья деревянные в фавориты все, и всё в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Столы", "material": ["стекло"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "apply_filters", "args": {"category": "Стулья", "material": ["дерево"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "add_to_cart", "args": {"quantifier": "all"}}]},
+    {"role": "user", "user": "положи в корзину 3 кровати и 2 шкафа",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Кровати"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 3}}, {"tool": "apply_filters", "args": {"category": "Шкафы"}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2}}]},
+    {"role": "user", "user": "найди диваны синие в избранное все, потом найди кресла белые, 2 в корзину",
+     "plan": [{"tool": "apply_filters", "args": {"category": "Диваны", "color": ["Синий"]}}, {"tool": "add_to_favorites", "args": {"quantifier": "all"}}, {"tool": "apply_filters", "args": {"category": "Кресла", "color": ["Белый"]}}, {"tool": "add_to_cart", "args": {"quantifier": "first_n", "n": 2}}]}
+  ]
+}

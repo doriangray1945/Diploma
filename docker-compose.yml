@@ -1,11 +1,16 @@
 services:
   postgres:
-    image: pgvector/pgvector:pg16
+    image: paradedb/paradedb:latest
     container_name: furniture-postgres
     environment:
       POSTGRES_DB: furniture_store
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      # PG18+ in the paradedb image expects data in a major-version-named
+      # subdir under /var/lib/postgresql. Set PGDATA explicitly so a single
+      # mount at /var/lib/postgresql/data still works the way it did under
+      # pgvector/pgvector:pg16.
+      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
     volumes:
@@ -25,7 +30,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/furniture_store
       SECRET_KEY: your-super-secret-key-change-in-production-123456
       OLLAMA_HOST: http://host.docker.internal:11434
-      OLLAMA_MODEL: qwen2.5:3b
+      OLLAMA_MODEL: furniture-3b-v4
       PYTHONPATH: /app
       ADMIN_EMAIL: admin@admin.com
       ADMIN_PASSWORD: admin12345

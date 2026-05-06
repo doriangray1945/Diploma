@@ -38,7 +38,7 @@ class Product(Base):
     model_glb_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     model_usdz_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
-    embedding = mapped_column(Vector(768), nullable=True)
+    embedding = mapped_column(Vector(1024), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

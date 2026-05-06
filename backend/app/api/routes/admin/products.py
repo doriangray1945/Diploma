@@ -10,8 +10,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import require_admin
 from app.core.database import get_db
 from app.models import Product
+from app.schemas.admin import (
+    BulkPriceUpdate,
+    BulkStockUpdate,
+    BulkUpdateResult,
+)
 from app.services.embeddings import embed
-from app.services.products import EMBEDDING_FIELDS, build_product_text
+from app.services.products import (
+    EMBEDDING_FIELDS,
+    build_product_text,
+    bulk_update_prices,
+    bulk_update_stock,
+)
 
 
 log = logging.getLogger(__name__)
@@ -215,3 +225,39 @@ async def delete_product(
     await db.delete(product)
     await db.commit()
     return None
+
+
+@router.post("/bulk-update-stock", response_model=BulkUpdateResult)
+async def bulk_update_stock_endpoint(
+    payload: BulkStockUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Bulk-update stock_quantity for products matching filter.
+
+    Used by chat tool `update_stock`. operation:
+    - set      → SET stock = quantity
+    - add      → SET stock = stock + quantity
+    - subtract → SET stock = MAX(0, stock - quantity)
+    Auto-syncs in_stock = (stock > 0)."""
+    affected = await bulk_update_stock(db, payload.filter, payload.operation, payload.quantity)
+    return BulkUpdateResult(affected_count=affected, operation=payload.operation)
+
+
+@router.post("/bulk-update-prices", response_model=BulkUpdateResult)
+async def bulk_update_prices_endpoint(
+    payload: BulkPriceUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Bulk-update prices for products matching filter.
+
+    Used by chat tool `update_prices`. operation:
+    - discount  → -value% from each price
+    - markup    → +value% to each price
+    - set_price → SET price = value (RUB, absolute)
+    Saves current price into old_price for UI discount-strike display."""
+    affected, delta = await bulk_update_prices(db, payload.filter, payload.operation, payload.value)
+    return BulkUpdateResult(
+        affected_count=affected,
+        operation=payload.operation,
+        revenue_impact=float(delta),
+    )

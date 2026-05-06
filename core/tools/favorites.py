@@ -3,70 +3,33 @@ from typing import Any
 from core.tools.base import BaseTool, flatten_ids
 
 
-class GetFavoritesTool(BaseTool):
-    name = "get_favorites"
-    description = "Показать избранное (список желаемых товаров)"
+_QUANTIFIERS = ["all", "first_n", "last_n", "remaining", "specific"]
 
-    def skeleton_examples(self):
-        return ["что в избранном", "покажи wishlist"]
-    parameters = {
-        "type": "object",
-        "properties": {},
-        "required": [],
-    }
-
-    async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
-        items = await self.provider.get_favorites(user_id)
-        if not items:
-            return {"favorites": [], "message": "Favorites list is empty"}
-        return {"favorites": items, "count": len(items)}
+_FIELD_DESCRIPTIONS = {
+    "quantifier":   "Какие товары выбрать из видимых (all/first_n/last_n/remaining/specific)",
+    "n":            "Число РАЗНЫХ товаров (когда quantifier=first_n/last_n)",
+    "product_ids":  "Конкретные ID товаров",
+    "category":     "Одна категория товара",
+    "color":        "Цвета (массив, можно несколько)",
+    "material":     "Материалы (массив, можно несколько)",
+    "product_name": "Подстрока в имени товара",
+    "all":          "Очистить всё (для filter в remove_from_*)",
+}
 
 
 class AddToFavoritesTool(BaseTool):
     name = "add_to_favorites"
-    description = "Добавить товары в избранное (wishlist)"
+    description = "Добавить товары в избранное (с указанием quantifier)"
 
-    def skeleton_examples(self):
-        return [
-            "добавь в избранное", "сохрани на потом",
-            "в wishlist", "запомни эти товары",
-        ]
     updates_context = {"favorites_summary": "result"}
     parameters = {
         "type": "object",
         "properties": {
-            "product_id": {
-                "type": "integer",
-                "description": "Single product ID",
-            },
-            "product_ids": {
-                "type": "array",
-                "items": {"type": "integer"},
-                "description": "Multiple product IDs to add at once",
-            },
+            "quantifier":  {"type": "string", "enum": _QUANTIFIERS, "description": _FIELD_DESCRIPTIONS["quantifier"]},
+            "n":           {"type": "integer", "description": _FIELD_DESCRIPTIONS["n"]},
+            "product_ids": {"type": "array", "items": {"type": "integer"}, "description": _FIELD_DESCRIPTIONS["product_ids"]},
         },
-        "required": [],
     }
-
-    def param_schema(self, filter_options=None, session_context=None):
-        visible: list[int] = []
-        if session_context is not None:
-            visible = list(session_context.visible_product_ids or [])
-        ids_schema: dict[str, Any] = {"type": "array", "items": {"type": "integer"}}
-        if visible:
-            ids_schema["items"] = {"type": "integer", "enum": visible}
-            ids_schema["minItems"] = 1
-        return {
-            "type": "object",
-            "properties": {"product_ids": ids_schema},
-            "required": ["product_ids"],
-        }
-
-    def few_shot(self):
-        return [
-            {"user": "в избранное первые 3",
-             "args": {"product_ids": "$context.visible_product_ids"}},
-        ]
 
     async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
         ids = flatten_ids(kwargs.get("product_ids"))
@@ -95,83 +58,73 @@ class AddToFavoritesTool(BaseTool):
 
 class RemoveFromFavoritesTool(BaseTool):
     name = "remove_from_favorites"
-    description = "Удалить товары из избранного"
+    description = "Удалить товары из избранного по фильтру"
 
-    def skeleton_examples(self):
-        return ["убери из избранного", "удали из wishlist"]
     parameters = {
         "type": "object",
         "properties": {
-            "product_id": {
-                "type": "integer",
-                "description": "Single product ID",
-            },
-            "product_ids": {
-                "type": "array",
-                "items": {"type": "integer"},
-                "description": "Multiple product IDs to remove at once",
+            "filter": {
+                "type": "object",
+                "minProperties": 1,
+                "properties": {
+                    "category":     {"type": "string", "description": _FIELD_DESCRIPTIONS["category"]},
+                    "color":        {"type": "array", "items": {"type": "string"}, "description": _FIELD_DESCRIPTIONS["color"]},
+                    "material":     {"type": "array", "items": {"type": "string"}, "description": _FIELD_DESCRIPTIONS["material"]},
+                    "product_name": {"type": "string", "description": _FIELD_DESCRIPTIONS["product_name"]},
+                    "all":          {"type": "boolean", "description": _FIELD_DESCRIPTIONS["all"]},
+                },
             },
         },
-        "required": [],
+        "required": ["filter"],
     }
 
-    def param_schema(self, filter_options=None, session_context=None):
-        # Restrict to currently-favorited product ids when known.
-        allowed: list[int] = []
-        if session_context is not None and session_context.favorites_summary:
-            fav = session_context.favorites_summary
-            for entry in fav.get("favorites", []) or fav.get("items", []):
-                if isinstance(entry, dict) and "product_id" in entry:
-                    allowed.append(int(entry["product_id"]))
-                elif isinstance(entry, dict) and "id" in entry:
-                    allowed.append(int(entry["id"]))
-        ids_schema: dict[str, Any] = {"type": "array", "items": {"type": "integer"}}
-        if allowed:
-            ids_schema["items"] = {"type": "integer", "enum": allowed}
-            ids_schema["minItems"] = 1
+    def _build_parameters(self, filter_options: dict[str, Any]) -> dict[str, Any]:
+        cats = list(filter_options.get("categories") or [])
+        cols = list(filter_options.get("colors") or [])
+        mats = list(filter_options.get("materials") or [])
+        cat: dict[str, Any] = {"type": "string"}
+        if cats: cat["enum"] = cats
+        cat["description"] = _FIELD_DESCRIPTIONS["category"]
+        col_items: dict[str, Any] = {"type": "string"}
+        if cols: col_items["enum"] = cols
+        mat_items: dict[str, Any] = {"type": "string"}
+        if mats: mat_items["enum"] = mats
         return {
             "type": "object",
-            "properties": {"product_ids": ids_schema},
-            "required": ["product_ids"],
+            "properties": {
+                "filter": {
+                    "type": "object",
+                    "minProperties": 1,
+                    "properties": {
+                        "category":     cat,
+                        "color":        {"type": "array", "items": col_items, "description": _FIELD_DESCRIPTIONS["color"]},
+                        "material":     {"type": "array", "items": mat_items, "description": _FIELD_DESCRIPTIONS["material"]},
+                        "product_name": {"type": "string", "description": _FIELD_DESCRIPTIONS["product_name"]},
+                        "all":          {"type": "boolean", "description": _FIELD_DESCRIPTIONS["all"]},
+                    },
+                },
+            },
+            "required": ["filter"],
         }
 
     async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
-        ids = flatten_ids(kwargs.get("product_ids"))
-        if kwargs.get("product_id"):
-            ids.append(int(kwargs["product_id"]))
+        flt = kwargs.get("filter") or {}
+        if not isinstance(flt, dict) or not flt:
+            return {"error": "filter is required"}
 
-        if not ids:
-            return {"error": "product_id or product_ids is required"}
-
-        results = []
-        errors = []
-        for pid in ids:
-            result = await self.provider.remove_from_favorites(user_id, pid)
-            if "error" in result:
-                errors.append({"product_id": pid, "error": result["error"]})
-            else:
-                results.append(result)
-
+        result = await self.provider.remove_favorites_by_filter(user_id, flt)
         return {
             "action": "removed_from_favorites",
-            "removed": results,
-            "errors": errors,
-            "count": len(results),
+            **result,
         }
 
 
 class ClearFavoritesTool(BaseTool):
     name = "clear_favorites"
-    description = "Очистить избранное (удалить все товары из wishlist)"
+    description = "Очистить избранное полностью"
 
-    def skeleton_examples(self):
-        return ["очисти избранное", "удали все из wishlist"]
     updates_context = {"favorites_summary": "result"}
-    parameters = {
-        "type": "object",
-        "properties": {},
-        "required": [],
-    }
+    parameters = {"type": "object", "properties": {}}
 
     async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
         result = await self.provider.clear_favorites(user_id)

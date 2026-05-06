@@ -2,12 +2,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_
+from sqlalchemy import or_, select, func
 
 from app.core.database import get_db
+from app.core.semantic_config import MATERIAL_GROUPS, resolve_material
 from app.models import Product, Favorite, User, Category
 from app.schemas import ProductResponse, ProductListResponse, CategoryResponse
 from app.api.deps import get_current_user_optional
+from app.services.products import apply_search_filter
 
 router = APIRouter()
 
@@ -22,7 +24,8 @@ async def get_products(
     subcategory: str | None = None,
     min_price: float | None = None,
     max_price: float | None = None,
-    color: str | None = None,
+    color: list[str] | None = Query(None),
+    material: list[str] | None = Query(None),
     in_stock: bool | None = None,
     is_popular: bool | None = None,
     is_new: bool | None = None,
@@ -30,48 +33,51 @@ async def get_products(
     sort_by: str = Query("created_at", pattern="^(created_at|price|rating|name)$"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$")
 ):
-    # Build query
-    query = select(Product)
-
-    # Apply filters
+    base = select(Product)
     if category:
-        query = query.where(Product.category == category)
+        base = base.where(Product.category == category)
     if subcategory:
-        query = query.where(Product.subcategory == subcategory)
+        base = base.where(Product.subcategory == subcategory)
     if min_price is not None:
-        query = query.where(Product.price >= min_price)
+        base = base.where(Product.price >= min_price)
     if max_price is not None:
-        query = query.where(Product.price <= max_price)
+        base = base.where(Product.price <= max_price)
     if color:
-        query = query.where(Product.color == color)
+        # FastAPI's `Query(None)` for `list[str]` already returns a list.
+        # Multi-value color: OR'd ILIKE.
+        base = base.where(or_(*[
+            Product.color.ilike(f"%{c}%") for c in color if c
+        ]))
+    if material:
+        # Multi-value material: each label expands via MATERIAL_GROUPS, all
+        # substrings OR'd into a single big WHERE.
+        all_substrings: list[str] = []
+        for m in material:
+            all_substrings.extend(resolve_material(m))
+        if all_substrings:
+            base = base.where(or_(*[
+                Product.materials.ilike(f"%{s}%") for s in all_substrings
+            ]))
     if in_stock is not None:
-        query = query.where(Product.in_stock == in_stock)
+        base = base.where(Product.in_stock == in_stock)
     if is_popular is not None:
-        query = query.where(Product.is_popular == is_popular)
+        base = base.where(Product.is_popular == is_popular)
     if is_new is not None:
-        query = query.where(Product.is_new == is_new)
-    if search:
-        search_pattern = f"%{search}%"
-        query = query.where(
-            or_(
-                Product.name.ilike(search_pattern),
-                Product.description.ilike(search_pattern)
-            )
-        )
+        base = base.where(Product.is_new == is_new)
 
-    # Count total
+    # Apply BM25 full-text search via pg_search. When `search` is set the
+    # query is reordered by `paradedb.score()` inside the helper; when it's
+    # not, we honour the user's sort_by/sort_order below.
+    query = apply_search_filter(base, search)
+
     count_query = select(func.count()).select_from(query.subquery())
-    total_result = await db.execute(count_query)
-    total = total_result.scalar()
+    total = (await db.execute(count_query)).scalar() or 0
 
-    # Apply sorting
-    sort_column = getattr(Product, sort_by)
-    if sort_order == "desc":
-        query = query.order_by(sort_column.desc())
-    else:
-        query = query.order_by(sort_column.asc())
+    if not search:
+        sort_column = getattr(Product, sort_by)
+        query = query.order_by(sort_column.desc() if sort_order == "desc" else sort_column.asc())
 
-    # Apply pagination
+    # Pagination
     offset = (page - 1) * per_page
     query = query.offset(offset).limit(per_page)
 
@@ -121,8 +127,37 @@ async def get_products(
         total=total,
         page=page,
         per_page=per_page,
-        pages=pages
+        pages=pages,
     )
+
+
+@router.get("/filter-options")
+async def get_filter_options(
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    """Return enum values for the catalog filter UI: categories, materials,
+    colors, price range. Used by the React FilterSidebar to populate
+    dropdowns/checkboxes.
+    """
+    cat_rows = (await db.execute(
+        select(Product.category).distinct()
+    )).scalars().all()
+    color_rows = (await db.execute(
+        select(Product.color).distinct().where(Product.color.isnot(None))
+    )).scalars().all()
+    price_row = (await db.execute(
+        select(func.min(Product.price), func.max(Product.price))
+    )).one()
+
+    return {
+        "categories": sorted([c for c in cat_rows if c]),
+        "colors":     sorted([c for c in color_rows if c]),
+        "materials":  list(MATERIAL_GROUPS.keys()),
+        "price_range": {
+            "min": float(price_row[0] or 0),
+            "max": float(price_row[1] or 0),
+        },
+    }
 
 
 @router.get("/categories", response_model=list[CategoryResponse])

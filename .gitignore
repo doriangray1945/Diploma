@@ -56,3 +56,8 @@ backend/*.egg-info/
 tmp/
 temp/
 *.tmp
+
+# Dataset artifacts (regenerable via dataset/generator.py, ~50MB total)
+dataset/*.jsonl
+
+dataset/model_v*

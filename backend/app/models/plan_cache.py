@@ -1,8 +1,8 @@
 """PlanCacheEntry — semantic memory of (user query → successful plan).
 
-A query is embedded via nomic-embed-text (dim=768). On a future query we
-cosine-similarity-search this table; the *caller* (pipeline) routes by
-similarity tier with additional intent/category guards.
+A query is embedded via bge-m3 (dim=1024, multilingual). On a future
+query we cosine-similarity-search this table; the *caller* (pipeline)
+routes by similarity tier with additional intent/category guards.
 
 The cache is GLOBAL: lookup does not filter by user_id. Plans are pure
 tool sequences with no user-specific data (args are filled per-request),
@@ -34,8 +34,8 @@ class PlanCacheEntry(Base):
 
     query_text: Mapped[str] = mapped_column(Text)
 
-    # 768 = nomic-embed-text dim (matches Product.embedding for shared loading)
-    query_embedding = mapped_column(Vector(768), nullable=False)
+    # 1024 = bge-m3 dim (matches Product.embedding)
+    query_embedding = mapped_column(Vector(1024), nullable=False)
 
     plan_json: Mapped[dict] = mapped_column(JSON)
     tools_signature: Mapped[str] = mapped_column(String(16), index=True)
