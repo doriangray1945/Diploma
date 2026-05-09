@@ -55,3 +55,4 @@ class Product(Base):
     # Without this flag, ORM would try to UPDATE the rows itself and could
     # conflict with the DB-level cascade.
     order_items = relationship("OrderItem", back_populates="product", passive_deletes=True)
+    reviews = relationship("Review", back_populates="product", cascade="all, delete-orphan", passive_deletes=True)

@@ -117,6 +117,28 @@ async def apply_inline_migrations():
                 "WHERE category IS NOT NULL "
                 "ON CONFLICT (name) DO NOTHING"
             ))
+        # Reviews table — one row per (user, product) thanks to UNIQUE.
+        # Product.rating and Product.reviews_count are recomputed by the
+        # reviews route on every CRUD operation; a backfill run on the next
+        # restart will recompute existing rows from any seeded reviews.
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS reviews (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+                rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+                text VARCHAR(2000),
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                CONSTRAINT uq_review_user_product UNIQUE (user_id, product_id)
+            )
+        """))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_reviews_product_id ON reviews(product_id)"
+        ))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_reviews_user_id ON reviews(user_id)"
+        ))
 
 async_session_maker = async_sessionmaker(
     engine,

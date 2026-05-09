@@ -185,6 +185,27 @@ export interface ChatResponse {
   actions?: ChatAction[];
 }
 
+export interface Review {
+  id: number;
+  user_id: number;
+  user_name: string;
+  rating: number;
+  text: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReviewListResponse {
+  items: Review[];
+  total: number;
+}
+
+export interface ReviewEligibility {
+  can_review: boolean;
+  has_review: boolean;
+  my_review: Review | null;
+}
+
 export interface Token {
   access_token: string;
   token_type: string;

@@ -6,6 +6,7 @@ import clsx from 'clsx';
 import ProductImageGallery from '../components/Product/ProductImageGallery';
 import ColorPicker from '../components/Product/ColorPicker';
 import SizePicker from '../components/Product/SizePicker';
+import ReviewSection from '../components/Product/ReviewSection';
 
 export default function ProductPage() {
   const { id } = useParams();
@@ -407,6 +408,9 @@ export default function ProductPage() {
           <h3 className="font-semibold text-slate-900 mb-4">Описание</h3>
           <p className="text-slate-600 leading-relaxed">{product.description}</p>
         </div>
+
+        {/* Reviews */}
+        <ReviewSection productId={product.id} />
       </div>
     </div>
   );

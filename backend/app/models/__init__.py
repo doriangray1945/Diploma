@@ -8,6 +8,7 @@ from app.models.chat import ChatMessage
 from app.models.chat_session import ChatSession
 from app.models.plan_cache import PlanCacheEntry
 from app.models.category import Category
+from app.models.review import Review
 
 __all__ = [
     "User",
@@ -21,4 +22,5 @@ __all__ = [
     "ChatSession",
     "PlanCacheEntry",
     "Category",
+    "Review",
 ]
