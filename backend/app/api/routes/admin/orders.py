@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import require_admin
 from app.core.database import get_db
-from app.models import Order, OrderItem, User
+from app.models import Order
 
 router = APIRouter(dependencies=[Depends(require_admin)])
 
@@ -55,7 +55,12 @@ class StatusUpdate(BaseModel):
     status: Status
 
 
-@router.get("", response_model=list[OrderView])
+class OrderListView(BaseModel):
+    items: list[OrderView]
+    total: int
+
+
+@router.get("", response_model=OrderListView)
 async def list_orders(
     db: Annotated[AsyncSession, Depends(get_db)],
     status_filter: Status | None = Query(None, alias="status"),
@@ -74,7 +79,7 @@ async def list_orders(
         q = q.where(Order.user_id == user_id)
 
     rows = (await db.execute(q)).scalars().all()
-    return [
+    items = [
         OrderView(
             id=o.id, user_id=o.user_id,
             user_email=o.user.email if o.user else "—",
@@ -93,6 +98,7 @@ async def list_orders(
         )
         for o in rows
     ]
+    return OrderListView(items=items, total=len(items))
 
 
 @router.patch("/{order_id}/status", response_model=OrderView)
@@ -101,7 +107,13 @@ async def update_status(
     body: StatusUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    order = await db.get(Order, order_id)
+    # Need items+variants eagerly so a cancel can return units to stock.
+    order_q = (
+        select(Order)
+        .where(Order.id == order_id)
+        .options(selectinload(Order.items))
+    )
+    order = (await db.execute(order_q)).scalar_one_or_none()
     if order is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Order not found")
     allowed = TRANSITIONS.get(order.status, set())
@@ -110,6 +122,21 @@ async def update_status(
             status.HTTP_400_BAD_REQUEST,
             f"Status transition '{order.status}' → '{body.status}' is not allowed",
         )
+
+    # When cancelling a non-cancelled order, return reserved units to stock.
+    # Stock was decremented at order creation (routes/orders.py:create_order),
+    # so any state with stock-allocation must give it back on cancel.
+    if body.status == "cancelled" and order.status != "cancelled":
+        from app.models import ProductVariant
+        for item in order.items:
+            if item.variant_id is None:
+                continue
+            v = await db.get(ProductVariant, item.variant_id, with_for_update=True)
+            if v is None:
+                continue
+            v.stock_quantity = (v.stock_quantity or 0) + item.quantity
+            v.in_stock = v.stock_quantity > 0
+
     order.status = body.status
     await db.commit()
     await db.refresh(order)

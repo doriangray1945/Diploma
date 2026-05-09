@@ -16,7 +16,7 @@ from app.services.session_service import (
     merge_ui_state,
     apply_context_updates,
 )
-from core.parsing import is_negative_feedback
+from app.llm.parsing import is_negative_feedback
 
 
 log = logging.getLogger(__name__)

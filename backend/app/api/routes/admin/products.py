@@ -5,12 +5,11 @@ payload; smart sync on PATCH (id → update, no id → insert, missing → delet
 Image upload: multipart endpoint `/admin/images/upload` writes to MinIO and
 returns the public URL. Frontend stores returned URL on `variant.images`.
 """
-import io
 import logging
 import re
 import uuid
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import (
     APIRouter, Depends, File, HTTPException, Query, UploadFile, status,
@@ -28,10 +27,7 @@ from app.schemas.admin import (
     BulkStockUpdate,
     BulkUpdateResult,
 )
-from app.services.embeddings import embed
 from app.services.products import (
-    EMBEDDING_FIELDS,
-    build_product_text,
     bulk_update_prices,
     bulk_update_stock,
 )
@@ -193,11 +189,6 @@ def _product_to_response(p: Product) -> AdminProductResponse:
     )
 
 
-async def _compute_embedding(product: Product) -> list[float] | None:
-    text = build_product_text(product)
-    return await embed(text)
-
-
 def _apply_variant_payload(target: ProductVariant, payload: VariantCreate | VariantUpdate) -> None:
     """Copy non-None fields onto the target variant. `is_default` handling is
     managed at the product level (only one default allowed)."""
@@ -341,12 +332,6 @@ async def create_product(
 
     product.default_variant_id = variants_created[default_idx].id
 
-    embedding = await _compute_embedding(product)
-    if embedding is not None:
-        product.embedding = embedding
-    else:
-        log.warning("[ADMIN] product %d created without embedding", product.id)
-
     await db.commit()
     # Refresh with eager-loaded variants for response.
     result = await db.execute(
@@ -377,18 +362,12 @@ async def update_product(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Product not found")
 
     changed = body.model_dump(exclude_unset=True, exclude={"variants"})
-    needs_embedding = bool(EMBEDDING_FIELDS & changed.keys())
 
     for field, value in changed.items():
         setattr(product, field, value)
 
     if body.variants is not None:
         await _sync_variants(db, product, body.variants)
-
-    if needs_embedding:
-        embedding = await _compute_embedding(product)
-        if embedding is not None:
-            product.embedding = embedding
 
     await db.commit()
     result = await db.execute(
@@ -556,34 +535,6 @@ async def update_variant(
     return _variant_to_response(v)
 
 
-@router.delete("/variants/{variant_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_variant(
-    variant_id: int,
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    v = await db.get(ProductVariant, variant_id)
-    if v is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Variant not found")
-    product_id = v.product_id
-    was_default = v.is_default
-    await db.delete(v)
-    await db.flush()
-    if was_default:
-        # Pick a fresh default among remaining variants (lowest id).
-        result = await db.execute(
-            select(ProductVariant).where(ProductVariant.product_id == product_id).order_by(ProductVariant.id)
-        )
-        candidates = list(result.scalars().all())
-        if candidates:
-            await _set_default_variant(db, product_id, candidates[0].id)
-        else:
-            product = await db.get(Product, product_id)
-            if product:
-                product.default_variant_id = None
-    await db.commit()
-    return None
-
-
 async def _set_default_variant(db: AsyncSession, product_id: int, variant_id: int) -> None:
     # Mark `variant_id` default, all others not.
     result = await db.execute(
@@ -633,7 +584,7 @@ async def upload_image(
 # --- Bulk endpoints (used by chat tools) ----------------------------------
 
 
-@router.post("/bulk-update-stock", response_model=BulkUpdateResult)
+@router.post("/bulk/stock", response_model=BulkUpdateResult)
 async def bulk_update_stock_endpoint(
     payload: BulkStockUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -644,7 +595,7 @@ async def bulk_update_stock_endpoint(
     return BulkUpdateResult(affected_count=affected, operation=payload.operation)
 
 
-@router.post("/bulk-update-prices", response_model=BulkUpdateResult)
+@router.post("/bulk/prices", response_model=BulkUpdateResult)
 async def bulk_update_prices_endpoint(
     payload: BulkPriceUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],

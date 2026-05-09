@@ -20,8 +20,8 @@ import {
   AdminUsersPage,
   AdminInventoryPage,
 } from './pages/admin';
-import RequireAdmin from './components/admin/RequireAdmin';
-import AdminLayout from './components/admin/AdminLayout';
+import RequireAdmin from './components/Admin/RequireAdmin';
+import AdminLayout from './components/Admin/AdminLayout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuthStore();

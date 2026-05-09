@@ -11,7 +11,7 @@ from sqlalchemy import or_, select, func, exists
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.semantic_config import MATERIAL_GROUPS, resolve_material
+from app.services.semantics import MATERIAL_GROUPS, resolve_material
 from app.models import Product, ProductVariant, Favorite, User, Category
 from app.schemas import ProductResponse, ProductListResponse, ProductVariantResponse, CategoryResponse
 from app.api.deps import get_current_user_optional

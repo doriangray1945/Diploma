@@ -5,6 +5,7 @@ export interface StatsOverview {
   orders_count: number;
   aov: number;
   new_users: number;
+  total_users: number;
   period_start: string;
   period_end: string;
 }
@@ -221,17 +222,10 @@ export const adminApi = {
     return r.data;
   },
 
-  // Single-variant operations (used by inline edit on ProductsPage).
-  addVariant: async (productId: number, body: AdminVariantCreate): Promise<AdminVariant> => {
-    const r = await api.post<AdminVariant>(`/admin/products/${productId}/variants`, body);
-    return r.data;
-  },
+  // Single-variant inline edit (used by ProductsPage and InventoryPage).
   updateVariant: async (variantId: number, body: AdminVariantUpdate): Promise<AdminVariant> => {
     const r = await api.patch<AdminVariant>(`/admin/products/variants/${variantId}`, body);
     return r.data;
-  },
-  deleteVariant: async (variantId: number): Promise<void> => {
-    await api.delete(`/admin/products/variants/${variantId}`);
   },
 
   // Image upload to MinIO. Returns { url, key }; we keep `url` and put it on
@@ -270,8 +264,8 @@ export const adminApi = {
     const params = new URLSearchParams();
     if (filters.status) params.append('status', filters.status);
     if (filters.user_id) params.append('user_id', String(filters.user_id));
-    const r = await api.get<AdminOrder[]>(`/admin/orders?${params}`);
-    return r.data;
+    const r = await api.get<{ items: AdminOrder[]; total: number }>(`/admin/orders?${params}`);
+    return r.data.items;
   },
   updateOrderStatus: async (id: number, status: OrderStatus): Promise<AdminOrder> => {
     const r = await api.patch<AdminOrder>(`/admin/orders/${id}/status`, { status });
@@ -309,7 +303,7 @@ export const adminApi = {
     return r.data;
   },
   inventorySummary: async (threshold: number = 5): Promise<InventorySummary> => {
-    const r = await api.get<InventorySummary>(`/admin/stats/inventory-summary?threshold=${threshold}`);
+    const r = await api.get<InventorySummary>(`/admin/stats/inventory?threshold=${threshold}`);
     return r.data;
   },
 };

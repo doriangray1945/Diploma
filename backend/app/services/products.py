@@ -1,42 +1,17 @@
 import logging
+import re
 from decimal import Decimal
 
 from sqlalchemy import case, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
-from app.core.semantic_config import resolve_price_level
+from app.services.semantics import resolve_price_level
 from app.models import Product, ProductVariant
 from app.schemas.admin import AdminFilter
 
 
 log = logging.getLogger(__name__)
-
-
-def build_product_text(product: Product) -> str:
-    """Searchable text used to compute the (legacy) product embedding.
-
-    Kept for the dormant `Product.embedding` column — admin CRUD still
-    populates it on save in case we ever want a hybrid lexical+vector
-    search later. The active search path is BM25 over the same fields,
-    via `apply_search_filter`.
-    """
-    parts = [product.name, product.description or "", product.category or ""]
-    if product.subcategory:
-        parts.append(product.subcategory)
-    if product.materials:
-        parts.append(f"материалы: {product.materials}")
-    # Variant colors aggregated to enrich the product-level text used for
-    # the dormant embedding column.
-    variant_colors = sorted({v.color for v in (product.variants or []) if v.color})
-    if variant_colors:
-        parts.append("цвета: " + ", ".join(variant_colors))
-    return " ".join(parts)
-
-
-# Fields that, when changed, require recomputing the embedding. Other fields
-# (price, stock, dimensions, flags) don't affect semantic search results.
-EMBEDDING_FIELDS = frozenset({"name", "description", "category", "subcategory", "materials"})
 
 
 _BM25_FIELDS = ("name", "description", "category", "subcategory", "materials")
@@ -63,7 +38,13 @@ def apply_search_filter(query: Select, search: str | None) -> Select:
     """
     if not search or not search.strip():
         return query
-    text_value = search.strip()
+    # Sanitize: Tantivy treats characters like <, >, +, -, !, (), [], {}, ", ~,
+    # *, ?, :, \, ^, &, | as query syntax. Raw user input containing them (e.g.
+    # «<script>», «foo:bar», «'; DROP» → trailing «--») triggers a parse error
+    # → 500. Strip everything except letters (any Unicode), digits, whitespace.
+    text_value = re.sub(r"[^\w\s]", " ", search).strip()
+    if not text_value:
+        return query
     or_clauses = " OR ".join(
         f"products.{f} @@@ :search_q" for f in _BM25_FIELDS
     )
@@ -117,7 +98,7 @@ def _apply_admin_filter(query: Select, flt: AdminFilter) -> Select:
         if flt.category:
             query = query.where(Product.category == flt.category)
         if flt.material:
-            from app.core.semantic_config import resolve_material
+            from app.services.semantics import resolve_material
             substrings: list[str] = []
             for m in flt.material:
                 substrings.extend(resolve_material(m) or [m])

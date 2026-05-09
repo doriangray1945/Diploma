@@ -1,8 +1,7 @@
-"""Embedding service — wraps Ollama's nomic-embed-text endpoint.
+"""Embedding service — wraps Ollama's bge-m3 endpoint.
 
-Used by:
-  - PlanCacheService to embed user queries for semantic plan lookup
-  - (future) seed_data.py for product embeddings — same model, dim=768
+Used by PlanCacheService to embed user queries for semantic plan lookup,
+and by admin/products to embed product fields for catalog search.
 
 Failures return None; callers must treat that as «can't compute» and fall
 back gracefully (typically: skip cache, run full pipeline).
@@ -30,7 +29,7 @@ _TIMEOUT = 60.0
 
 
 async def embed(text: str) -> list[float] | None:
-    """Encode `text` with nomic-embed-text via Ollama's /api/embed endpoint.
+    """Encode `text` with bge-m3 via Ollama's /api/embed endpoint.
 
     NOTE: We use the newer /api/embed (not the legacy /api/embeddings) — in
     Ollama 0.20.7 the legacy endpoint returns the same constant vector for

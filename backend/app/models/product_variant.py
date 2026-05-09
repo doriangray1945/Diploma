@@ -50,5 +50,9 @@ class ProductVariant(Base):
     )
 
     product = relationship("Product", back_populates="variants", foreign_keys=[product_id])
-    cart_items = relationship("CartItem", back_populates="variant")
-    favorites = relationship("Favorite", back_populates="variant")
+    # passive_deletes=True: when a variant is deleted, let Postgres CASCADE
+    # remove cart_items/favorites rows. Without this, SQLAlchemy ORM tries
+    # to NULL out variant_id on related rows first → NotNullViolationError
+    # because variant_id is NOT NULL.
+    cart_items = relationship("CartItem", back_populates="variant", passive_deletes=True)
+    favorites = relationship("Favorite", back_populates="variant", passive_deletes=True)

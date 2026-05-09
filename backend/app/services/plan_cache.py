@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.plan_cache import PlanCacheEntry
 from app.services.embeddings import embed
-from core.parsing import normalize_for_embedding
+from app.llm.parsing import normalize_for_embedding
 
 
 log = logging.getLogger(__name__)

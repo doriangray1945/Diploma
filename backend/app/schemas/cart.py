@@ -1,12 +1,12 @@
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schemas.product import ProductResponse
 
 
 class CartItemBase(BaseModel):
     variant_id: int
-    quantity: int = 1
+    quantity: int = Field(default=1, ge=1)
 
 
 class CartItemCreate(CartItemBase):
@@ -14,7 +14,7 @@ class CartItemCreate(CartItemBase):
 
 
 class CartItemUpdate(BaseModel):
-    quantity: int
+    quantity: int = Field(ge=1)
 
 
 class CartItemResponse(BaseModel):

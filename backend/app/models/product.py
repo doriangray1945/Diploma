@@ -50,4 +50,8 @@ class Product(Base):
         cascade="all, delete-orphan",
         foreign_keys="ProductVariant.product_id",
     )
-    order_items = relationship("OrderItem", back_populates="product")
+    # passive_deletes=True: order_items.product_id has ON DELETE SET NULL,
+    # so deleting a product preserves order history with NULL product ref.
+    # Without this flag, ORM would try to UPDATE the rows itself and could
+    # conflict with the DB-level cascade.
+    order_items = relationship("OrderItem", back_populates="product", passive_deletes=True)

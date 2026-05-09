@@ -1,18 +1,18 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.config import CoreConfig
-from core.llm.ollama import OllamaProvider
-from core.pipeline import Pipeline
-from core.schemas import AgentResult, Message, Role, SessionContext, UserContext
-from core.tools.admin_bulk import (
+from app.llm.config import CoreConfig
+from app.llm.clients.ollama import OllamaProvider
+from app.llm.pipeline import Pipeline
+from app.llm.schemas import AgentResult, Message, Role, SessionContext, UserContext
+from app.llm.tools.admin_bulk import (
     GetSalesAnalyticsTool,
     UpdatePricesTool,
     UpdateStockTool,
 )
-from core.tools.base import ToolRegistry
-from core.tools.cart import AddToCartTool, ClearCartTool, RemoveFromCartTool
-from core.tools.catalog import ApplyFiltersTool
-from core.tools.favorites import (
+from app.llm.tools.base import ToolRegistry
+from app.llm.tools.cart import AddToCartTool, ClearCartTool, RemoveFromCartTool
+from app.llm.tools.catalog import ApplyFiltersTool
+from app.llm.tools.favorites import (
     AddToFavoritesTool,
     ClearFavoritesTool,
     RemoveFromFavoritesTool,

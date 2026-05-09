@@ -18,8 +18,10 @@ async def register(
     user_data: UserCreate,
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
-    # Check if user exists
-    result = await db.execute(select(User).where(User.email == user_data.email))
+    # Email is case-insensitive: store and look up always lowercased so
+    # `Foo@x.com` and `foo@x.com` can't register as two distinct users.
+    email = user_data.email.lower().strip()
+    result = await db.execute(select(User).where(User.email == email))
     if result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -30,7 +32,7 @@ async def register(
     # role can only be granted out-of-band (env-seed or another admin via
     # /admin/users), never by the public registration endpoint.
     user = User(
-        email=user_data.email,
+        email=email,
         name=user_data.name,
         password_hash=get_password_hash(user_data.password),
         is_admin=False,
@@ -49,7 +51,8 @@ async def login(
     user_data: UserLogin,
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
-    result = await db.execute(select(User).where(User.email == user_data.email))
+    email = user_data.email.lower().strip()
+    result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(user_data.password, user.password_hash):

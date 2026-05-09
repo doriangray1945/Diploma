@@ -3,7 +3,6 @@ import { useProductsStore, useAuthStore } from '../stores';
 import { Chat } from '../components/Chat';
 import { ProductCard } from '../components/ProductCard';
 import { CatalogFilters, Pagination } from '../components/Catalog';
-import { HelpCircle } from 'lucide-react';
 
 export default function CatalogPage() {
   const { user } = useAuthStore();
@@ -21,14 +20,6 @@ export default function CatalogPage() {
 
       {/* Filters */}
       <CatalogFilters />
-
-      {/* Help button */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <button className="bg-primary-600 text-white px-4 py-2.5 rounded-full shadow-lg hover:bg-primary-700 transition-colors flex items-center gap-2">
-          <HelpCircle className="w-5 h-5" />
-          Помощь
-        </button>
-      </div>
 
       {/* Products grid */}
       <div id="catalog-grid">

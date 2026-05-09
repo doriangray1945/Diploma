@@ -82,12 +82,16 @@ async def create_order(
 
     # Lock the variant rows for the transaction. Concurrent checkout of the
     # same SKU blocks here until our commit/rollback completes.
+    # populate_existing=True forces ORM to refresh from this FOR UPDATE query
+    # — without it, the variant cached by `selectinload(CartItem.variant)`
+    # above (unlocked read) is returned and `v.stock_quantity` is stale.
     variant_ids = list({ci.variant_id for ci in cart_items})
     locked_result = await db.execute(
         select(ProductVariant)
         .where(ProductVariant.id.in_(variant_ids))
         .with_for_update()
         .options(selectinload(ProductVariant.product))
+        .execution_options(populate_existing=True)
     )
     locked_variants = {v.id: v for v in locked_result.scalars().all()}
 
@@ -125,6 +129,10 @@ async def create_order(
     # Sold-out always blocks. Insufficient blocks unless user accepted clamping.
     if sold_out or (insufficient and not order_data.accept_clamping):
         await db.rollback()
+        # `detail` is a dict (not the usual string) so the frontend can render
+        # a modal with the specific unavailable SKUs and decide whether to
+        # offer the «accept_clamping» retry based on `can_clamp`. A flat
+        # string couldn't carry the per-item breakdown the UI needs.
         raise HTTPException(
             status_code=409,
             detail={

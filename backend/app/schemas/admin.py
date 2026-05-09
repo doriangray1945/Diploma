@@ -9,6 +9,7 @@ class StatsOverview(BaseModel):
     orders_count: int
     aov: float
     new_users: int
+    total_users: int
     period_start: datetime
     period_end: datetime
 
@@ -117,7 +118,7 @@ class AnalyticsQuery(BaseModel):
                 raise ValueError("period=custom requires both from_date and to_date")
         else:
             if self.from_date is not None or self.to_date is not None:
-                raise ValueError(f"from_date/to_date only valid with period=custom")
+                raise ValueError("from_date/to_date only valid with period=custom")
         return self
 
 

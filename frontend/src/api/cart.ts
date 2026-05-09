@@ -16,7 +16,7 @@ export const cartApi = {
   },
 
   updateCartItem: async (itemId: number, quantity: number): Promise<CartItem> => {
-    const response = await api.put<CartItem>(`/cart/items/${itemId}`, { quantity });
+    const response = await api.patch<CartItem>(`/cart/items/${itemId}`, { quantity });
     return response.data;
   },
 

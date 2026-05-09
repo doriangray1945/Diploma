@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Body, Depends, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,11 +47,13 @@ async def overview(
         Order.status != "cancelled",
         Order.created_at >= start,
     )
-    users_q = select(func.count(User.id)).where(User.created_at >= start)
+    new_users_q = select(func.count(User.id)).where(User.created_at >= start)
+    total_users_q = select(func.count(User.id))
 
     revenue = float((await db.execute(revenue_q)).scalar_one() or 0)
     orders_count = int((await db.execute(count_q)).scalar_one())
-    new_users = int((await db.execute(users_q)).scalar_one())
+    new_users = int((await db.execute(new_users_q)).scalar_one())
+    total_users = int((await db.execute(total_users_q)).scalar_one())
     aov = revenue / orders_count if orders_count else 0.0
 
     return StatsOverview(
@@ -59,6 +61,7 @@ async def overview(
         orders_count=orders_count,
         aov=round(aov, 2),
         new_users=new_users,
+        total_users=total_users,
         period_start=start,
         period_end=end,
     )
@@ -188,7 +191,7 @@ async def low_stock(
     return out
 
 
-@router.get("/inventory-summary", response_model=InventorySummary)
+@router.get("/inventory", response_model=InventorySummary)
 async def inventory_summary(
     db: Annotated[AsyncSession, Depends(get_db)],
     threshold: int = Query(5, ge=0, le=1000),

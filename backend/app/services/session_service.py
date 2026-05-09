@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.chat_session import ChatSession
-from core.schemas import SessionContext
+from app.llm.schemas import SessionContext
 
 
 async def get_or_create_session(

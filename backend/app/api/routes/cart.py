@@ -10,8 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.models import CartItem, Product, ProductVariant, User, Favorite
-from app.schemas import CartItemCreate, CartItemUpdate, CartResponse, CartItemResponse, ProductResponse
-from app.schemas.product import ProductVariantResponse
+from app.schemas import CartItemCreate, CartItemUpdate, CartResponse, CartItemResponse
 from app.api.deps import get_current_user
 from app.api.routes.products import _serialize_product
 
@@ -104,9 +103,16 @@ async def add_to_cart(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)]
 ):
+    # Lock the variant row for the duration of this transaction. Concurrent
+    # add_to_cart calls on the same variant_id serialize here, eliminating
+    # the lost-update race where two parallel requests both read «cart
+    # qty=0» and each try to INSERT (or both UPDATE on stale qty), losing
+    # one of the increments. With this lock, exactly one request at a time
+    # owns the read+write slice.
     variant = (await db.execute(
         select(ProductVariant)
         .where(ProductVariant.id == item_data.variant_id)
+        .with_for_update()
         .options(selectinload(ProductVariant.product).selectinload(Product.variants))
     )).scalar_one_or_none()
     if not variant:
@@ -162,7 +168,7 @@ async def add_to_cart(
     return _serialize_cart_item(cart_item, fav_ids)
 
 
-@router.put("/items/{item_id}", response_model=CartItemResponse)
+@router.patch("/items/{item_id}", response_model=CartItemResponse)
 async def update_cart_item(
     item_id: int,
     item_data: CartItemUpdate,

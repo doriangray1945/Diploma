@@ -2,11 +2,6 @@
 emit `product_id` (the model knows products, not SKU IDs), and we resolve
 to default_variant for cart/favorites mutations. Filter queries scan
 variant fields for price/color/stock since those moved off Product.
-
-Admin bulk ops (`bulk_update_*`, `add_product` etc.) are stubbed — they
-need rewiring against ProductVariant in a follow-up phase. Returning
-`{"error": ...}` keeps the chat pipeline alive (validator handles it
-gracefully).
 """
 from typing import Any
 
@@ -14,7 +9,7 @@ from sqlalchemy import or_, select, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.semantic_config import MATERIAL_GROUPS, resolve_material
+from app.services.semantics import MATERIAL_GROUPS, resolve_material
 from app.models import Product, ProductVariant, CartItem, Order, OrderItem, Favorite
 from app.services.products import apply_search_filter
 
@@ -420,16 +415,6 @@ class PostgresDataProvider:
         }
 
     # ── Admin bulk ops (chat tools update_stock/update_prices/get_sales_analytics) ──
-
-    async def add_product(self, **product_data: Any) -> dict[str, Any]:
-        # Single-product CRUD via chat is not surfaced — admins use the UI.
-        return {"error": "Создание товаров доступно только через админ-панель"}
-
-    async def update_product(self, product_id: int, **updates: Any) -> dict[str, Any]:
-        return {"error": "Редактирование товаров доступно только через админ-панель"}
-
-    async def delete_product(self, product_id: int) -> dict[str, Any]:
-        return {"error": "Удаление товаров доступно только через админ-панель"}
 
     async def bulk_update_stock(
         self, filter: dict[str, Any], operation: str, quantity: int
