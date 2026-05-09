@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_admin
 from app.core.database import get_db
-from app.models import Order, OrderItem, Product, User
+from app.models import Order, OrderItem, Product, ProductVariant, User
 from app.schemas.admin import (
     AnalyticsBucket,
     AnalyticsQuery,
@@ -156,19 +156,36 @@ async def low_stock(
     db: Annotated[AsyncSession, Depends(get_db)],
     threshold: int = Query(5, ge=0, le=1000),
 ):
+    """Variants whose stock falls below the threshold (and is still marked
+    in_stock). Reported as one row per low SKU — the product `name` is
+    suffixed with the variant's color/size for clarity."""
     q = (
-        select(Product)
-        .where(and_(Product.stock_quantity < threshold, Product.in_stock == True))  # noqa: E712
-        .order_by(Product.stock_quantity.asc())
-    )
-    rows = (await db.execute(q)).scalars().all()
-    return [
-        LowStockProduct(
-            id=p.id, name=p.name, category=p.category,
-            stock_quantity=p.stock_quantity, in_stock=p.in_stock,
+        select(
+            ProductVariant.id,
+            Product.name,
+            Product.category,
+            ProductVariant.color,
+            ProductVariant.size_label,
+            ProductVariant.stock_quantity,
+            ProductVariant.in_stock,
         )
-        for p in rows
-    ]
+        .join(Product, Product.id == ProductVariant.product_id)
+        .where(and_(
+            ProductVariant.stock_quantity < threshold,
+            ProductVariant.in_stock == True,  # noqa: E712
+        ))
+        .order_by(ProductVariant.stock_quantity.asc())
+    )
+    rows = (await db.execute(q)).all()
+    out: list[LowStockProduct] = []
+    for r in rows:
+        suffix_parts = [p for p in (r.color, r.size_label) if p]
+        suffix = f" ({', '.join(suffix_parts)})" if suffix_parts else ""
+        out.append(LowStockProduct(
+            id=r.id, name=r.name + suffix, category=r.category,
+            stock_quantity=r.stock_quantity, in_stock=r.in_stock,
+        ))
+    return out
 
 
 @router.get("/inventory-summary", response_model=InventorySummary)
@@ -176,17 +193,18 @@ async def inventory_summary(
     db: Annotated[AsyncSession, Depends(get_db)],
     threshold: int = Query(5, ge=0, le=1000),
 ):
-    total = int((await db.execute(select(func.count(Product.id)))).scalar_one())
+    """Inventory counts on variant-level — every SKU is one row."""
+    total = int((await db.execute(select(func.count(ProductVariant.id)))).scalar_one())
     in_stock = int(
         (await db.execute(
-            select(func.count(Product.id)).where(Product.in_stock == True)  # noqa: E712
+            select(func.count(ProductVariant.id)).where(ProductVariant.in_stock == True)  # noqa: E712
         )).scalar_one()
     )
     low = int(
         (await db.execute(
-            select(func.count(Product.id)).where(
-                Product.in_stock == True,  # noqa: E712
-                Product.stock_quantity < threshold,
+            select(func.count(ProductVariant.id)).where(
+                ProductVariant.in_stock == True,  # noqa: E712
+                ProductVariant.stock_quantity < threshold,
             )
         )).scalar_one()
     )

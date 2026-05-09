@@ -1,11 +1,21 @@
+"""Data provider used by core LLM chat tools. Variant-aware: tools still
+emit `product_id` (the model knows products, not SKU IDs), and we resolve
+to default_variant for cart/favorites mutations. Filter queries scan
+variant fields for price/color/stock since those moved off Product.
+
+Admin bulk ops (`bulk_update_*`, `add_product` etc.) are stubbed — they
+need rewiring against ProductVariant in a follow-up phase. Returning
+`{"error": ...}` keeps the chat pipeline alive (validator handles it
+gracefully).
+"""
 from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.semantic_config import MATERIAL_GROUPS, resolve_material
-from app.models import Product, CartItem, Order, OrderItem, Favorite
+from app.models import Product, ProductVariant, CartItem, Order, OrderItem, Favorite
 from app.services.products import apply_search_filter
 
 
@@ -22,7 +32,9 @@ def _row_matches(product: Any, flt: dict[str, Any]) -> bool:
     color = flt.get("color")
     if color:
         color_list = color if isinstance(color, list) else [color]
-        if product.color not in color_list:
+        # Match any variant of the product against the color list.
+        product_colors = {v.color for v in (product.variants or []) if v.color}
+        if not (set(color_list) & product_colors):
             return False
 
     material = flt.get("material")
@@ -60,31 +72,33 @@ class PostgresDataProvider:
         limit: int = 5,
         **filters: Any,
     ) -> list[dict[str, Any]]:
-        # Build base query with non-search filters first, then layer BM25
-        # full-text search on top via apply_search_filter. Same code path
-        # as /api/products — keeps UI search box and AI chat consistent.
-        base = select(Product)
+        # Build base on Product, push price/color/in_stock filters into
+        # EXISTS subqueries against ProductVariant — a product passes if at
+        # least one of its variants matches.
+        base = select(Product).options(selectinload(Product.variants))
         if category:
             base = base.where(Product.category.ilike(f"%{category}%"))
-        if min_price is not None:
-            base = base.where(Product.price >= min_price)
-        if max_price is not None:
-            base = base.where(Product.price <= max_price)
-        if in_stock:
-            base = base.where(Product.in_stock == True)  # noqa: E712
 
-        # Color filter — list (multi-value) OR single string.
-        # Multiple values OR'd: «красные или синие диваны».
+        variant_filters: list = []
+        if min_price is not None:
+            variant_filters.append(ProductVariant.price >= min_price)
+        if max_price is not None:
+            variant_filters.append(ProductVariant.price <= max_price)
+        if in_stock:
+            variant_filters.append(ProductVariant.in_stock == True)  # noqa: E712
+
         color = filters.get("color")
         if color:
             color_list = color if isinstance(color, list) else [color]
-            base = base.where(or_(*[
-                Product.color.ilike(f"%{c}%") for c in color_list if c
+            variant_filters.append(or_(*[
+                ProductVariant.color.ilike(f"%{c}%") for c in color_list if c
             ]))
 
-        # Material filter — list of coarse-grained labels («твёрдое» =
-        # ['дерево', 'металл']). Each label expands via MATERIAL_GROUPS
-        # to its catalog substrings, all ORd into a single big WHERE.
+        if variant_filters:
+            base = base.where(exists().where(
+                ProductVariant.product_id == Product.id, *variant_filters
+            ))
+
         material = filters.get("material")
         if material:
             material_list = material if isinstance(material, list) else [material]
@@ -108,7 +122,9 @@ class PostgresDataProvider:
             return None
         try:
             result = await self.db.execute(
-                select(Product).where(Product.id == product_id)
+                select(Product)
+                .where(Product.id == product_id)
+                .options(selectinload(Product.variants))
             )
             product = result.scalar_one_or_none()
         except Exception:
@@ -117,6 +133,23 @@ class PostgresDataProvider:
         if not product:
             return None
         return self._product_to_dict(product, detailed=True)
+
+    async def _resolve_variant_id(self, product_id: int) -> int | None:
+        """Tools pass product_id; we map to the product's default variant."""
+        result = await self.db.execute(
+            select(Product.default_variant_id).where(Product.id == product_id)
+        )
+        vid = result.scalar_one_or_none()
+        if vid:
+            return vid
+        # Fallback: pick first variant if default not set.
+        first = await self.db.execute(
+            select(ProductVariant.id)
+            .where(ProductVariant.product_id == product_id)
+            .order_by(ProductVariant.id)
+            .limit(1)
+        )
+        return first.scalar_one_or_none()
 
     # ── Cart ─────────────────────────────────────────────────────
 
@@ -128,23 +161,45 @@ class PostgresDataProvider:
             quantity = int(quantity)
         except (TypeError, ValueError):
             return {"error": "Некорректные параметры"}
-        result = await self.db.execute(
-            select(Product).where(Product.id == product_id)
-        )
-        product = result.scalar_one_or_none()
 
+        product_result = await self.db.execute(
+            select(Product)
+            .where(Product.id == product_id)
+            .options(selectinload(Product.variants))
+        )
+        product = product_result.scalar_one_or_none()
         if not product:
             return {"error": "Товар не найден"}
-        if not product.in_stock:
+
+        variant_id = await self._resolve_variant_id(product_id)
+        if not variant_id:
+            return {"error": "Нет доступных вариантов товара"}
+
+        variant = next((v for v in product.variants if v.id == variant_id), None)
+        if variant and not variant.in_stock:
             return {"error": "Товар не в наличии"}
 
         cart_result = await self.db.execute(
             select(CartItem).where(
                 CartItem.user_id == user_id,
-                CartItem.product_id == product_id,
+                CartItem.variant_id == variant_id,
             )
         )
         existing = cart_result.scalar_one_or_none()
+        existing_qty = existing.quantity if existing else 0
+
+        # Stock validation — same rule as REST cart route.
+        stock = variant.stock_quantity if variant else 0
+        if existing_qty + quantity > stock:
+            available = max(0, stock - existing_qty)
+            if existing_qty == 0:
+                msg = f"На складе осталось {stock} шт."
+            else:
+                msg = (
+                    f"На складе осталось {stock} шт., в корзине уже {existing_qty} — "
+                    f"можно добавить ещё {available}"
+                )
+            return {"error": msg}
 
         if existing:
             existing.quantity += quantity
@@ -152,7 +207,7 @@ class PostgresDataProvider:
             self.db.add(
                 CartItem(
                     user_id=user_id,
-                    product_id=product_id,
+                    variant_id=variant_id,
                     quantity=quantity,
                 )
             )
@@ -160,30 +215,41 @@ class PostgresDataProvider:
 
         return {
             "product_id": product_id,
+            "variant_id": variant_id,
             "product_name": product.name,
             "quantity": quantity,
-            "price": float(product.price),
+            "price": float(variant.price) if variant else 0.0,
         }
 
     async def get_cart(self, user_id: int) -> dict[str, Any]:
         result = await self.db.execute(
             select(CartItem)
             .where(CartItem.user_id == user_id)
-            .options(selectinload(CartItem.product))
+            .options(
+                selectinload(CartItem.variant)
+                .selectinload(ProductVariant.product)
+            )
         )
         items = result.scalars().all()
 
         total = 0.0
         cart_items = []
         for item in items:
-            subtotal = float(item.product.price) * item.quantity
+            variant = item.variant
+            if not variant:
+                continue
+            product = variant.product
+            subtotal = float(variant.price) * item.quantity
             total += subtotal
             cart_items.append({
                 "id": item.id,
-                "product_id": item.product_id,
-                "product_name": item.product.name,
+                "product_id": product.id if product else None,
+                "variant_id": variant.id,
+                "product_name": product.name if product else "",
+                "color": variant.color,
+                "size_label": variant.size_label,
                 "quantity": item.quantity,
-                "price": float(item.product.price),
+                "price": float(variant.price),
                 "subtotal": subtotal,
             })
 
@@ -228,26 +294,65 @@ class PostgresDataProvider:
         cart_result = await self.db.execute(
             select(CartItem)
             .where(CartItem.user_id == user_id)
-            .options(selectinload(CartItem.product))
+            .options(
+                selectinload(CartItem.variant)
+                .selectinload(ProductVariant.product)
+            )
         )
-        cart_items = cart_result.scalars().all()
+        cart_items = list(cart_result.scalars().all())
 
         if not cart_items:
             return {"error": "Корзина пуста"}
 
+        # Lock variants for the transaction.
+        variant_ids = list({ci.variant_id for ci in cart_items})
+        locked = (await self.db.execute(
+            select(ProductVariant)
+            .where(ProductVariant.id.in_(variant_ids))
+            .with_for_update()
+            .options(selectinload(ProductVariant.product))
+        )).scalars().all()
+        by_id = {v.id: v for v in locked}
+
+        # Fail loudly: any sold-out / insufficient → no order created.
+        unavailable: list[str] = []
+        for ci in cart_items:
+            v = by_id.get(ci.variant_id)
+            if v is None or v.stock_quantity == 0:
+                name = v.product.name if v and v.product else f"товар #{ci.variant_id}"
+                unavailable.append(f"«{name}» распродан")
+            elif v.stock_quantity < ci.quantity:
+                name = v.product.name if v.product else f"товар #{v.id}"
+                unavailable.append(
+                    f"«{name}»: запрошено {ci.quantity}, осталось {v.stock_quantity}"
+                )
+        if unavailable:
+            await self.db.rollback()
+            return {
+                "error": (
+                    "Корзина изменилась: " + "; ".join(unavailable) +
+                    ". Удалите недоступные товары или измените количество."
+                )
+            }
+
         total = 0.0
         order_items = []
-        for item in cart_items:
-            item_total = float(item.product.price) * item.quantity
+        for ci in cart_items:
+            v = by_id[ci.variant_id]
+            product = v.product
+            item_total = float(v.price) * ci.quantity
             total += item_total
             order_items.append(
                 OrderItem(
-                    product_id=item.product_id,
-                    product_name=item.product.name,
-                    quantity=item.quantity,
-                    price=float(item.product.price),
+                    product_id=product.id if product else None,
+                    variant_id=v.id,
+                    product_name=product.name if product else "",
+                    quantity=ci.quantity,
+                    price=float(v.price),
                 )
             )
+            v.stock_quantity = v.stock_quantity - ci.quantity
+            v.in_stock = v.stock_quantity > 0
 
         order = Order(
             user_id=user_id,
@@ -314,63 +419,17 @@ class PostgresDataProvider:
             "message": f"Заказ №{order.id} обновлён",
         }
 
-    # ── Admin ────────────────────────────────────────────────────
+    # ── Admin bulk ops (chat tools update_stock/update_prices/get_sales_analytics) ──
 
     async def add_product(self, **product_data: Any) -> dict[str, Any]:
-        product = Product(
-            name=product_data.get("name", ""),
-            description=product_data.get("description", ""),
-            price=product_data.get("price", 0),
-            category=product_data.get("category", ""),
-            color=product_data.get("color"),
-            stock_quantity=product_data.get("stock_quantity", 0),
-            in_stock=product_data.get("stock_quantity", 0) > 0,
-        )
-        self.db.add(product)
-        await self.db.commit()
-        await self.db.refresh(product)
+        # Single-product CRUD via chat is not surfaced — admins use the UI.
+        return {"error": "Создание товаров доступно только через админ-панель"}
 
-        return {
-            "product_id": product.id,
-            "name": product.name,
-            "message": f"Товар '{product.name}' добавлен (ID: {product.id})",
-        }
-
-    async def update_product(
-        self, product_id: int, **updates: Any
-    ) -> dict[str, Any]:
-        result = await self.db.execute(
-            select(Product).where(Product.id == product_id)
-        )
-        product = result.scalar_one_or_none()
-        if not product:
-            return {"error": "Товар не найден"}
-
-        for key, value in updates.items():
-            if hasattr(product, key) and value is not None:
-                setattr(product, key, value)
-
-        await self.db.commit()
-        return {
-            "product_id": product.id,
-            "name": product.name,
-            "message": f"Товар '{product.name}' обновлён",
-        }
+    async def update_product(self, product_id: int, **updates: Any) -> dict[str, Any]:
+        return {"error": "Редактирование товаров доступно только через админ-панель"}
 
     async def delete_product(self, product_id: int) -> dict[str, Any]:
-        result = await self.db.execute(
-            select(Product).where(Product.id == product_id)
-        )
-        product = result.scalar_one_or_none()
-        if not product:
-            return {"error": "Товар не найден"}
-
-        name = product.name
-        await self.db.delete(product)
-        await self.db.commit()
-        return {"message": f"Товар '{name}' удалён"}
-
-    # ── Bulk admin ops (chat tools update_stock/update_prices/get_sales_analytics)
+        return {"error": "Удаление товаров доступно только через админ-панель"}
 
     async def bulk_update_stock(
         self, filter: dict[str, Any], operation: str, quantity: int
@@ -386,7 +445,10 @@ class PostgresDataProvider:
         return {
             "affected_count": affected,
             "operation": operation,
-            "message": f"Обновлены остатки {affected} товаров (операция: {operation}, количество: {quantity})",
+            "message": (
+                f"Обновлены остатки {affected} вариантов "
+                f"(операция: {operation}, количество: {quantity})"
+            ),
         }
 
     async def bulk_update_prices(
@@ -404,14 +466,16 @@ class PostgresDataProvider:
             "affected_count": affected,
             "operation": operation,
             "revenue_impact": float(delta),
-            "message": f"Обновлены цены {affected} товаров (операция: {operation}, значение: {value})",
+            "message": (
+                f"Обновлены цены {affected} вариантов "
+                f"(операция: {operation}, значение: {value})"
+            ),
         }
 
     async def query_sales_analytics(self, **kwargs: Any) -> dict[str, Any]:
         from app.schemas.admin import AdminFilter, AnalyticsQuery
         from app.services import analytics
 
-        # Filter pre-parse: tool may pass dict, schema needs AdminFilter
         if "filter" in kwargs and isinstance(kwargs["filter"], dict):
             try:
                 kwargs["filter"] = AdminFilter(**kwargs["filter"])
@@ -445,18 +509,26 @@ class PostgresDataProvider:
         result = await self.db.execute(
             select(Favorite)
             .where(Favorite.user_id == user_id)
-            .options(selectinload(Favorite.product))
+            .options(
+                selectinload(Favorite.variant)
+                .selectinload(ProductVariant.product)
+            )
         )
         favorites = result.scalars().all()
-        return [
-            {
-                "product_id": f.product_id,
-                "product_name": f.product.name,
-                "price": float(f.product.price),
-            }
-            for f in favorites
-            if f.product
-        ]
+        out = []
+        for f in favorites:
+            v = f.variant
+            if not v:
+                continue
+            product = v.product
+            out.append({
+                "product_id": product.id if product else None,
+                "variant_id": v.id,
+                "product_name": product.name if product else "",
+                "color": v.color,
+                "price": float(v.price),
+            })
+        return out
 
     async def add_to_favorites(
         self, user_id: int, product_id: int
@@ -466,26 +538,31 @@ class PostgresDataProvider:
         except (TypeError, ValueError):
             return {"error": "Некорректный ID товара"}
 
-        product = await self.db.execute(
+        product_result = await self.db.execute(
             select(Product).where(Product.id == product_id)
         )
-        product = product.scalar_one_or_none()
+        product = product_result.scalar_one_or_none()
         if not product:
             return {"error": "Товар не найден"}
+
+        variant_id = await self._resolve_variant_id(product_id)
+        if not variant_id:
+            return {"error": "Нет доступных вариантов товара"}
 
         existing = await self.db.execute(
             select(Favorite).where(
                 Favorite.user_id == user_id,
-                Favorite.product_id == product_id,
+                Favorite.variant_id == variant_id,
             )
         )
         if existing.scalar_one_or_none():
             return {"error": "Товар уже в избранном"}
 
-        self.db.add(Favorite(user_id=user_id, product_id=product_id))
+        self.db.add(Favorite(user_id=user_id, variant_id=variant_id))
         await self.db.commit()
         return {
             "product_id": product_id,
+            "variant_id": variant_id,
             "product_name": product.name,
         }
 
@@ -497,19 +574,21 @@ class PostgresDataProvider:
         except (TypeError, ValueError):
             return {"error": "Некорректный ID товара"}
 
-        result = await self.db.execute(
-            select(Favorite).where(
+        # Remove ALL variants of this product from user's favorites (LLM thinks product-level).
+        rows = (await self.db.execute(
+            select(Favorite)
+            .join(ProductVariant, Favorite.variant_id == ProductVariant.id)
+            .where(
                 Favorite.user_id == user_id,
-                Favorite.product_id == product_id,
+                ProductVariant.product_id == product_id,
             )
-        )
-        fav = result.scalar_one_or_none()
-        if not fav:
+        )).scalars().all()
+        if not rows:
             return {"error": "Товар не в избранном"}
-
-        await self.db.delete(fav)
+        for r in rows:
+            await self.db.delete(r)
         await self.db.commit()
-        return {"product_id": product_id}
+        return {"product_id": product_id, "removed_count": len(rows)}
 
     async def clear_favorites(self, user_id: int) -> dict[str, Any]:
         result = await self.db.execute(
@@ -524,42 +603,42 @@ class PostgresDataProvider:
     async def remove_favorites_by_filter(
         self, user_id: int, flt: dict[str, Any]
     ) -> dict[str, Any]:
-        """Remove favorites matching `flt` against the user's current list.
-
-        flt keys: category, color, material, product_name, all.
-        Returns {removed: [{product_id, product_name}, ...], count: N}.
-        """
         return await self._remove_by_filter(user_id, flt, table="favorites")
 
     async def remove_cart_by_filter(
         self, user_id: int, flt: dict[str, Any]
     ) -> dict[str, Any]:
-        """Symmetric to remove_favorites_by_filter, for cart_items."""
         return await self._remove_by_filter(user_id, flt, table="cart")
 
     async def _remove_by_filter(
         self, user_id: int, flt: dict[str, Any], table: str
     ) -> dict[str, Any]:
         Model = Favorite if table == "favorites" else CartItem
-        # Pull the user's full set joined with Product so we can apply
-        # the agent-emitted filter against product attributes (category,
-        # color, materials substring) directly in Python — small set
-        # (<200 items realistic) so no SQL JOIN headache needed.
         rows = (await self.db.execute(
-            select(Model).where(Model.user_id == user_id)
-            .options(selectinload(Model.product))
+            select(Model)
+            .where(Model.user_id == user_id)
+            .options(
+                selectinload(Model.variant)
+                .selectinload(ProductVariant.product)
+                .selectinload(Product.variants)
+            )
         )).scalars().all()
 
         if flt.get("all"):
             matching = list(rows)
         else:
-            matching = [r for r in rows if _row_matches(r.product, flt)]
+            matching = [
+                r for r in rows
+                if r.variant and _row_matches(r.variant.product, flt)
+            ]
 
         removed = []
         for row in matching:
+            product = row.variant.product if row.variant else None
             removed.append({
-                "product_id": row.product_id,
-                "product_name": row.product.name if row.product else None,
+                "product_id": product.id if product else None,
+                "variant_id": row.variant_id,
+                "product_name": product.name if product else None,
             })
             await self.db.delete(row)
         await self.db.commit()
@@ -584,18 +663,18 @@ class PostgresDataProvider:
         )
         categories = sorted([r for r in cat_result.scalars().all() if r])
 
+        # Colors and prices live on variants now.
         color_result = await self.db.execute(
-            select(Product.color).distinct().where(Product.color.isnot(None))
+            select(ProductVariant.color)
+            .distinct()
+            .where(ProductVariant.color.isnot(None))
         )
         colors = sorted([r for r in color_result.scalars().all() if r])
 
-        # Materials: surface canonical groups (MATERIAL_GROUPS keys), not raw
-        # DB tokens. Frontend filter and LLM-prompt enum stay aligned; backend
-        # expands group → substrings via resolve_material() during search.
         materials = list(MATERIAL_GROUPS.keys())
 
         price_result = await self.db.execute(
-            select(func.min(Product.price), func.max(Product.price))
+            select(func.min(ProductVariant.price), func.max(ProductVariant.price))
         )
         row = price_result.one()
         min_p, max_p = float(row[0] or 0), float(row[1] or 0)
@@ -614,24 +693,34 @@ class PostgresDataProvider:
     def _product_to_dict(
         self, p: Product, detailed: bool = False
     ) -> dict[str, Any]:
+        # Pick default variant for snapshot price/color/stock.
+        variants = list(p.variants or [])
+        default = next((v for v in variants if v.is_default), variants[0] if variants else None)
+
         data: dict[str, Any] = {
             "id": p.id,
             "name": p.name,
-            "price": float(p.price),
             "category": p.category,
-            "color": p.color,
-            "in_stock": p.in_stock,
+            "price": float(default.price) if default else 0.0,
+            "color": default.color if default else None,
+            "in_stock": bool(default.in_stock) if default else False,
         }
 
         if detailed:
             data.update({
                 "description": p.description,
-                "old_price": float(p.old_price) if p.old_price else None,
+                "old_price": float(default.old_price) if default and default.old_price else None,
                 "dimensions": p.dimensions,
                 "materials": p.materials,
-                "stock_quantity": p.stock_quantity,
+                "stock_quantity": default.stock_quantity if default else 0,
                 "rating": float(p.rating) if p.rating else None,
                 "reviews_count": p.reviews_count,
+                "variants": [
+                    {"id": v.id, "color": v.color, "size_label": v.size_label,
+                     "price": float(v.price), "stock_quantity": v.stock_quantity,
+                     "in_stock": v.in_stock}
+                    for v in variants
+                ],
             })
         else:
             desc = p.description or ""

@@ -8,8 +8,9 @@ interface FavoritesState {
   error: string | null;
 
   fetchFavorites: () => Promise<void>;
-  addToFavorites: (productId: number) => Promise<void>;
-  removeFromFavorites: (productId: number) => Promise<void>;
+  addToFavorites: (variantId: number) => Promise<void>;
+  removeFromFavorites: (variantId: number) => Promise<void>;
+  // Product-level helper: any variant of this product is favorited.
   isFavorite: (productId: number) => boolean;
 }
 
@@ -29,9 +30,9 @@ export const useFavoritesStore = create<FavoritesState>((set, get) => ({
     }
   },
 
-  addToFavorites: async (productId: number) => {
+  addToFavorites: async (variantId: number) => {
     try {
-      await favoritesApi.addToFavorites(productId);
+      await favoritesApi.addToFavorites(variantId);
       await get().fetchFavorites();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Ошибка добавления в избранное';
@@ -40,9 +41,9 @@ export const useFavoritesStore = create<FavoritesState>((set, get) => ({
     }
   },
 
-  removeFromFavorites: async (productId: number) => {
+  removeFromFavorites: async (variantId: number) => {
     try {
-      await favoritesApi.removeFromFavorites(productId);
+      await favoritesApi.removeFromFavorites(variantId);
       await get().fetchFavorites();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Ошибка удаления из избранного';

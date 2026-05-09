@@ -7,6 +7,7 @@ from app.schemas.user import (
 from app.schemas.product import (
     ProductResponse,
     ProductListResponse,
+    ProductVariantResponse,
     CategoryResponse,
 )
 from app.schemas.cart import (

@@ -9,7 +9,7 @@ interface CartState {
   error: string | null;
 
   fetchCart: () => Promise<void>;
-  addToCart: (productId: number, quantity?: number) => Promise<void>;
+  addToCart: (variantId: number, quantity?: number) => Promise<void>;
   updateQuantity: (itemId: number, quantity: number) => Promise<void>;
   removeItem: (itemId: number) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -32,9 +32,9 @@ export const useCartStore = create<CartState>((set, get) => ({
     }
   },
 
-  addToCart: async (productId: number, quantity: number = 1) => {
+  addToCart: async (variantId: number, quantity: number = 1) => {
     try {
-      await cartApi.addToCart(productId, quantity);
+      await cartApi.addToCart(variantId, quantity);
       await get().fetchCart();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Ошибка добавления в корзину';

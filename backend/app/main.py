@@ -68,6 +68,13 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     await apply_inline_migrations()
     await seed_admin()
+    # MinIO bucket bootstrap — public-read so browsers can fetch product images directly.
+    try:
+        from app.services.storage import MinioStorage
+        MinioStorage().ensure_bucket()
+        log.info("[STARTUP] MinIO bucket %s ready", settings.MINIO_BUCKET)
+    except Exception as e:
+        log.warning("[STARTUP] MinIO bucket setup failed (catalog images may break): %s", e)
     yield
     # Shutdown
     await engine.dispose()

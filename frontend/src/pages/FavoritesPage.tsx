@@ -37,9 +37,22 @@ export default function FavoritesPage() {
       </h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {favorites.map((favorite) => (
-          <ProductCard key={favorite.id} product={favorite.product} />
-        ))}
+        {favorites.map((favorite) => {
+          const parts = [favorite.selected_color, favorite.selected_size].filter(Boolean);
+          const variantLabel = parts.length > 0 ? parts.join(' · ') : null;
+          // Show the favorited SKU's photos, not the product's default variant.
+          const variant = favorite.product.variants?.find((v) => v.id === favorite.variant_id);
+          const product = variant?.images?.length
+            ? { ...favorite.product, images: variant.images }
+            : favorite.product;
+          return (
+            <ProductCard
+              key={favorite.id}
+              product={product}
+              variantLabel={variantLabel}
+            />
+          );
+        })}
       </div>
     </div>
   );

@@ -6,24 +6,35 @@ import clsx from 'clsx';
 
 interface ProductCardProps {
   product: Product;
+  // Optional: when a card represents a specific variant (favorite or cart row),
+  // show the selected colour/size label under the category line.
+  variantLabel?: string | null;
 }
 
-export default function ProductCard({ product }: ProductCardProps) {
+export default function ProductCard({ product, variantLabel }: ProductCardProps) {
   const { user } = useAuthStore();
   const { addToCart } = useCartStore();
-  const { addToFavorites, removeFromFavorites, isFavorite } = useFavoritesStore();
+  const { favorites, addToFavorites, removeFromFavorites } = useFavoritesStore();
 
-  const isInFavorites = isFavorite(product.id);
+  // Find which variant of this product is currently favorited (if any).
+  // Source of truth is the favorites array — the heart removes exactly the
+  // SKU the user originally added, not whichever default the product points
+  // at right now.
+  const favoritedVariantId =
+    favorites.find((f) => f.product_id === product.id)?.variant_id ?? null;
+  const isInFavorites = favoritedVariantId !== null;
+
+  const defaultVariantId = product.default_variant_id ?? product.variants?.[0]?.id ?? null;
 
   const handleFavoriteClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     if (!user) return;
 
     try {
-      if (isInFavorites) {
-        await removeFromFavorites(product.id);
-      } else {
-        await addToFavorites(product.id);
+      if (favoritedVariantId !== null) {
+        await removeFromFavorites(favoritedVariantId);
+      } else if (defaultVariantId !== null) {
+        await addToFavorites(defaultVariantId);
       }
     } catch (error) {
       console.error('Failed to update favorites:', error);
@@ -32,10 +43,10 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !defaultVariantId) return;
 
     try {
-      await addToCart(product.id);
+      await addToCart(defaultVariantId);
     } catch (error) {
       console.error('Failed to add to cart:', error);
     }
@@ -43,6 +54,20 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   // Placeholder image
   const imageUrl = product.images[0] || `https://placehold.co/400x300/e2e8f0/64748b?text=${encodeURIComponent(product.name)}`;
+
+  // Variant summary: distinct colours and how to pluralise (RU: 2-4 цвета, 5+ цветов).
+  const colorCount = new Set(
+    (product.variants ?? []).map((v) => v.color).filter((c): c is string => !!c),
+  ).size;
+  const colorLabel = colorCount > 1
+    ? `${colorCount} ${colorCount >= 5 ? 'цветов' : 'цвета'}`
+    : null;
+
+  // Whole product is sold out when no variant has stock.
+  const allSoldOut =
+    product.variants && product.variants.length > 0
+      ? product.variants.every((v) => !v.in_stock || v.stock_quantity === 0)
+      : !product.in_stock;
 
   return (
     <Link
@@ -54,22 +79,38 @@ export default function ProductCard({ product }: ProductCardProps) {
         <img
           src={imageUrl}
           alt={product.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          className={clsx(
+            'w-full h-full object-cover group-hover:scale-105 transition-transform duration-300',
+            allSoldOut && 'grayscale opacity-60',
+          )}
           onError={(e) => {
             (e.target as HTMLImageElement).src = `https://placehold.co/400x300/e2e8f0/64748b?text=${encodeURIComponent(product.name)}`;
           }}
         />
 
+        {allSoldOut && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span className="px-3 py-1.5 bg-slate-900/80 text-white text-sm font-medium rounded-full backdrop-blur-sm">
+              Нет в наличии
+            </span>
+          </div>
+        )}
+
         {/* Badges */}
-        <div className="absolute top-3 left-3 flex gap-2">
-          {product.is_new && (
+        <div className="absolute top-3 left-3 flex gap-2 flex-wrap">
+          {!allSoldOut && product.is_new && (
             <span className="px-2 py-1 bg-green-500 text-white text-xs font-medium rounded-full">
               Новинка
             </span>
           )}
-          {product.old_price && (
+          {!allSoldOut && product.old_price && (
             <span className="px-2 py-1 bg-red-500 text-white text-xs font-medium rounded-full">
               Скидка
+            </span>
+          )}
+          {!allSoldOut && colorLabel && (
+            <span className="px-2 py-1 bg-slate-900/80 text-white text-xs font-medium rounded-full">
+              {colorLabel}
             </span>
           )}
         </div>
@@ -98,6 +139,11 @@ export default function ProductCard({ product }: ProductCardProps) {
         {/* Name */}
         <h3 className="font-semibold text-slate-900 mb-1 line-clamp-1">{product.name}</h3>
 
+        {/* Variant label (only when card represents a specific SKU) */}
+        {variantLabel && (
+          <p className="text-xs text-slate-600 mb-1">{variantLabel}</p>
+        )}
+
         {/* Description */}
         <p className="text-sm text-slate-500 mb-3 line-clamp-2">{product.description}</p>
 
@@ -117,8 +163,9 @@ export default function ProductCard({ product }: ProductCardProps) {
           {user && (
             <button
               onClick={handleAddToCart}
-              className="p-2 text-primary-600 hover:bg-primary-50 rounded-full transition-colors"
-              title="Добавить в корзину"
+              disabled={allSoldOut}
+              title={allSoldOut ? 'Нет в наличии' : 'Добавить в корзину'}
+              className="p-2 text-primary-600 hover:bg-primary-50 rounded-full transition-colors disabled:text-slate-300 disabled:hover:bg-transparent disabled:cursor-not-allowed"
             >
               <ShoppingCart className="w-5 h-5" />
             </button>

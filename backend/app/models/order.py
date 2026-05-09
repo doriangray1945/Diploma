@@ -31,6 +31,11 @@ class OrderItem(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"), index=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
+    # Track the actual SKU sold so analytics can group_by color/size_label.
+    # SET NULL because we want order history to survive variant deletion.
+    variant_id: Mapped[int | None] = mapped_column(
+        ForeignKey("product_variants.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     product_name: Mapped[str] = mapped_column(String(255))  # Store name in case product is deleted
     quantity: Mapped[int] = mapped_column(Integer)
@@ -38,3 +43,4 @@ class OrderItem(Base):
 
     order = relationship("Order", back_populates="items")
     product = relationship("Product", back_populates="order_items")
+    variant = relationship("ProductVariant")

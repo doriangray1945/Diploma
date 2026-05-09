@@ -10,6 +10,9 @@ interface CreateOrderData {
   address: string;
   phone: string;
   comment?: string;
+  // True when the user has confirmed clamping insufficient items down to
+  // current stock (e.g. 2 → 1). Sold-out items still block.
+  accept_clamping?: boolean;
 }
 
 export const ordersApi = {

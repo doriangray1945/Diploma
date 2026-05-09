@@ -22,6 +22,10 @@ class OrderCreate(BaseModel):
     address: str
     phone: str
     comment: str | None = None
+    # When true, the user has explicitly accepted clamping `insufficient`
+    # items down to current stock (e.g. requested 2, only 1 available).
+    # Sold-out items still block the checkout — must be removed by the user.
+    accept_clamping: bool = False
 
 
 class OrderResponse(BaseModel):

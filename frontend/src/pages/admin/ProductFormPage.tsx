@@ -1,37 +1,63 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import {
   adminApi,
   type AdminProduct,
   type AdminProductCreate,
+  type AdminProductUpdate,
+  type AdminVariantUpdate,
 } from '../../api/admin';
 import { productsApi } from '../../api/products';
+import ProductVariantsTable, { type FormVariant } from '../../components/admin/ProductVariantsTable';
 
-const empty: AdminProductCreate = {
+interface ProductFormState {
+  name: string;
+  description: string;
+  category: string;
+  subcategory: string | null;
+  materials: string | null;
+  dimensions_w: number | null;
+  dimensions_d: number | null;
+  dimensions_h: number | null;
+  is_popular: boolean;
+  is_new: boolean;
+  model_glb_url: string | null;
+  model_usdz_url: string | null;
+}
+
+const empty: ProductFormState = {
   name: '',
   description: '',
-  price: 0,
-  old_price: null,
   category: '',
   subcategory: null,
-  images: [],
-  dimensions: null,
   materials: null,
-  color: null,
-  in_stock: true,
-  stock_quantity: 0,
+  dimensions_w: null,
+  dimensions_d: null,
+  dimensions_h: null,
   is_popular: false,
   is_new: false,
   model_glb_url: null,
   model_usdz_url: null,
 };
 
+const emptyVariant = (isFirst: boolean): FormVariant => ({
+  color: null,
+  size_label: null,
+  price: 0,
+  old_price: null,
+  stock_quantity: 0,
+  images: [],
+  sku: null,
+  is_default: isFirst,
+});
+
 export default function ProductFormPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isEdit = Boolean(id);
-  const [form, setForm] = useState<AdminProductCreate>(empty);
+  const [form, setForm] = useState<ProductFormState>(empty);
+  const [variants, setVariants] = useState<FormVariant[]>([emptyVariant(true)]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -46,27 +72,102 @@ export default function ProductFormPage() {
     setLoading(true);
     adminApi
       .getProduct(Number(id))
-      .then((p) => {
-        const { id: _id, rating: _r, reviews_count: _rc, created_at: _ca, updated_at: _ua, ...rest } =
-          p as AdminProduct;
-        setForm(rest as AdminProductCreate);
+      .then((p: AdminProduct) => {
+        setForm({
+          name: p.name,
+          description: p.description,
+          category: p.category,
+          subcategory: p.subcategory ?? null,
+          materials: p.materials ?? null,
+          dimensions_w: p.dimensions?.width ?? null,
+          dimensions_d: p.dimensions?.depth ?? null,
+          dimensions_h: p.dimensions?.height ?? null,
+          is_popular: p.is_popular,
+          is_new: p.is_new,
+          model_glb_url: p.model_glb_url ?? null,
+          model_usdz_url: p.model_usdz_url ?? null,
+        });
+        setVariants(
+          p.variants.map((v): AdminVariantUpdate => ({
+            id: v.id,
+            color: v.color,
+            size_label: v.size_label,
+            dimensions: v.dimensions,
+            price: v.price,
+            old_price: v.old_price,
+            stock_quantity: v.stock_quantity,
+            images: v.images,
+            sku: v.sku,
+            is_default: v.is_default,
+          })),
+        );
       })
       .catch(() => setError('Товар не найден'))
       .finally(() => setLoading(false));
   }, [id]);
 
-  const update = <K extends keyof AdminProductCreate>(k: K, v: AdminProductCreate[K]) =>
+  const update = <K extends keyof ProductFormState>(k: K, v: ProductFormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
+
+  const dimensions = (() => {
+    const { dimensions_w: w, dimensions_d: d, dimensions_h: h } = form;
+    if (w == null && d == null && h == null) return null;
+    return { width: w ?? 0, depth: d ?? 0, height: h ?? 0 };
+  })();
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (variants.length === 0) {
+      setError('Добавьте хотя бы один вариант');
+      return;
+    }
+    if (!variants.some((v) => v.is_default)) {
+      // Force the first variant as default if user removed all defaults.
+      variants[0].is_default = true;
+    }
     setSaving(true);
     try {
       if (isEdit && id) {
-        await adminApi.updateProduct(Number(id), form);
+        const payload: AdminProductUpdate = {
+          name: form.name,
+          description: form.description,
+          category: form.category,
+          subcategory: form.subcategory,
+          materials: form.materials,
+          dimensions,
+          is_popular: form.is_popular,
+          is_new: form.is_new,
+          model_glb_url: form.model_glb_url,
+          model_usdz_url: form.model_usdz_url,
+          variants,
+        };
+        await adminApi.updateProduct(Number(id), payload);
       } else {
-        await adminApi.createProduct(form);
+        const payload: AdminProductCreate = {
+          name: form.name,
+          description: form.description,
+          category: form.category,
+          subcategory: form.subcategory,
+          materials: form.materials,
+          dimensions,
+          is_popular: form.is_popular,
+          is_new: form.is_new,
+          model_glb_url: form.model_glb_url,
+          model_usdz_url: form.model_usdz_url,
+          variants: variants.map((v) => ({
+            color: v.color,
+            size_label: v.size_label,
+            dimensions: v.dimensions,
+            price: v.price ?? 0,
+            old_price: v.old_price ?? null,
+            stock_quantity: v.stock_quantity ?? 0,
+            images: v.images ?? [],
+            sku: v.sku,
+            is_default: v.is_default,
+          })),
+        };
+        await adminApi.createProduct(payload);
       }
       navigate('/admin/products');
     } catch (err: any) {
@@ -105,199 +206,145 @@ export default function ProductFormPage() {
 
       <form
         onSubmit={submit}
-        className="grid grid-cols-1 lg:grid-cols-2 gap-4 bg-white border border-slate-200 rounded-xl p-6 shadow-sm"
+        className="space-y-6 bg-white border border-slate-200 rounded-xl p-6 shadow-sm"
       >
-        <Field label="Название" required>
-          <input
-            type="text"
-            required
-            value={form.name}
-            onChange={(e) => update('name', e.target.value)}
-            className="input"
-          />
-        </Field>
+        {/* Product-level fields */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Field label="Название" required>
+            <input
+              type="text"
+              required
+              value={form.name}
+              onChange={(e) => update('name', e.target.value)}
+              className="input"
+            />
+          </Field>
 
-        <Field label="Категория" required>
-          <input
-            list="cat-list"
-            required
-            value={form.category}
-            onChange={(e) => update('category', e.target.value)}
-            className="input"
-            placeholder="Например: Диваны"
-          />
-          <datalist id="cat-list">
-            {categories.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
-        </Field>
+          <Field label="Категория" required>
+            <input
+              list="cat-list"
+              required
+              value={form.category}
+              onChange={(e) => update('category', e.target.value)}
+              className="input"
+              placeholder="Например: Диваны"
+            />
+            <datalist id="cat-list">
+              {categories.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </Field>
 
-        <Field label="Подкатегория">
-          <input
-            type="text"
-            value={form.subcategory ?? ''}
-            onChange={(e) => update('subcategory', e.target.value || null)}
-            className="input"
-          />
-        </Field>
+          <Field label="Подкатегория">
+            <input
+              type="text"
+              value={form.subcategory ?? ''}
+              onChange={(e) => update('subcategory', e.target.value || null)}
+              className="input"
+            />
+          </Field>
 
-        <Field label="Цена" required>
-          <input
-            type="number"
-            min={0}
-            required
-            value={form.price}
-            onChange={(e) => update('price', Number(e.target.value))}
-            className="input"
-          />
-        </Field>
+          <Field label="Материалы">
+            <input
+              type="text"
+              value={form.materials ?? ''}
+              onChange={(e) => update('materials', e.target.value || null)}
+              className="input"
+              placeholder="ткань, дерево"
+            />
+          </Field>
 
-        <Field label="Старая цена (зачёркнутая)">
-          <input
-            type="number"
-            min={0}
-            value={form.old_price ?? ''}
-            onChange={(e) => update('old_price', e.target.value ? Number(e.target.value) : null)}
-            className="input"
-          />
-        </Field>
+          <Field label="Размеры (ШxГxВ см)" full>
+            <div className="grid grid-cols-3 gap-2">
+              <input
+                type="number"
+                placeholder="Ширина"
+                min={0}
+                value={form.dimensions_w ?? ''}
+                onChange={(e) =>
+                  update('dimensions_w', e.target.value === '' ? null : Number(e.target.value))
+                }
+                className="input"
+              />
+              <input
+                type="number"
+                placeholder="Глубина"
+                min={0}
+                value={form.dimensions_d ?? ''}
+                onChange={(e) =>
+                  update('dimensions_d', e.target.value === '' ? null : Number(e.target.value))
+                }
+                className="input"
+              />
+              <input
+                type="number"
+                placeholder="Высота"
+                min={0}
+                value={form.dimensions_h ?? ''}
+                onChange={(e) =>
+                  update('dimensions_h', e.target.value === '' ? null : Number(e.target.value))
+                }
+                className="input"
+              />
+            </div>
+          </Field>
 
-        <Field label="Остаток на складе">
-          <input
-            type="number"
-            min={0}
-            value={form.stock_quantity}
-            onChange={(e) => update('stock_quantity', Number(e.target.value))}
-            className="input"
-          />
-        </Field>
+          <Field label="Описание" full>
+            <textarea
+              value={form.description}
+              onChange={(e) => update('description', e.target.value)}
+              rows={3}
+              className="input"
+            />
+          </Field>
 
-        <Field label="Цвет">
-          <input
-            type="text"
-            value={form.color ?? ''}
-            onChange={(e) => update('color', e.target.value || null)}
-            className="input"
-          />
-        </Field>
+          <Field label="3D-модель GLB" full>
+            <input
+              type="text"
+              value={form.model_glb_url ?? ''}
+              onChange={(e) => update('model_glb_url', e.target.value || null)}
+              className="input"
+              placeholder="/models/sofa.glb"
+            />
+          </Field>
 
-        <Field label="Размеры">
-          <input
-            type="text"
-            placeholder="200x90x85"
-            value={form.dimensions ?? ''}
-            onChange={(e) => update('dimensions', e.target.value || null)}
-            className="input"
-          />
-        </Field>
+          <Field label="3D-модель USDZ (iOS AR)" full>
+            <input
+              type="text"
+              value={form.model_usdz_url ?? ''}
+              onChange={(e) => update('model_usdz_url', e.target.value || null)}
+              className="input"
+              placeholder="/models/sofa.usdz"
+            />
+          </Field>
 
-        <Field label="Материалы" full>
-          <input
-            type="text"
-            value={form.materials ?? ''}
-            onChange={(e) => update('materials', e.target.value || null)}
-            className="input"
-          />
-        </Field>
-
-        <Field label="Описание" full>
-          <textarea
-            value={form.description}
-            onChange={(e) => update('description', e.target.value)}
-            rows={3}
-            className="input"
-          />
-        </Field>
-
-        <Field label="Картинки (URL)" full>
-          <div className="space-y-2">
-            {form.images.map((img, i) => (
-              <div key={i} className="flex gap-2">
-                <input
-                  type="text"
-                  value={img}
-                  onChange={(e) => {
-                    const next = [...form.images];
-                    next[i] = e.target.value;
-                    update('images', next);
-                  }}
-                  className="input flex-1"
-                  placeholder="https://example.com/image.jpg"
-                />
-                <button
-                  type="button"
-                  onClick={() => update('images', form.images.filter((_, idx) => idx !== i))}
-                  className="px-3 text-slate-500 hover:text-red-600"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={() => update('images', [...form.images, ''])}
-              className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900"
-            >
-              <Plus className="w-4 h-4" /> Добавить картинку
-            </button>
+          <div className="flex items-center gap-6 lg:col-span-2 pt-2">
+            <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={form.is_popular}
+                onChange={(e) => update('is_popular', e.target.checked)}
+              />
+              Популярный
+            </label>
+            <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={form.is_new}
+                onChange={(e) => update('is_new', e.target.checked)}
+              />
+              Новинка
+            </label>
           </div>
-        </Field>
-
-        <Field label="3D-модель GLB (для десктопа и Android AR)" full>
-          <input
-            type="text"
-            value={form.model_glb_url ?? ''}
-            onChange={(e) => update('model_glb_url', e.target.value || null)}
-            className="input"
-            placeholder="/models/sofa.glb"
-          />
-          <p className="text-xs text-slate-500 mt-1">
-            Положи файл в <code>frontend/public/models/</code> и впиши путь, начиная с <code>/models/</code>.
-          </p>
-        </Field>
-
-        <Field label="3D-модель USDZ (для iOS AR Quick Look)" full>
-          <input
-            type="text"
-            value={form.model_usdz_url ?? ''}
-            onChange={(e) => update('model_usdz_url', e.target.value || null)}
-            className="input"
-            placeholder="/models/sofa.usdz"
-          />
-          <p className="text-xs text-slate-500 mt-1">
-            На iPhone Safari эта модель откроется в нативном AR (с использованием LiDAR).
-          </p>
-        </Field>
-
-        <div className="flex items-center gap-6 lg:col-span-2 pt-2">
-          <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={form.in_stock}
-              onChange={(e) => update('in_stock', e.target.checked)}
-            />
-            В наличии
-          </label>
-          <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={form.is_popular}
-              onChange={(e) => update('is_popular', e.target.checked)}
-            />
-            Популярный
-          </label>
-          <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={form.is_new}
-              onChange={(e) => update('is_new', e.target.checked)}
-            />
-            Новинка
-          </label>
         </div>
 
-        <div className="flex justify-end gap-2 lg:col-span-2 border-t border-slate-100 pt-4">
+        {/* Variants section */}
+        <div className="border-t border-slate-200 pt-6">
+          <ProductVariantsTable variants={variants} onChange={setVariants} />
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
           <button
             type="button"
             onClick={() => navigate('/admin/products')}

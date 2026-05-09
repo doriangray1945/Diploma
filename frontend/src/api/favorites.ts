@@ -12,12 +12,12 @@ export const favoritesApi = {
     return response.data;
   },
 
-  addToFavorites: async (productId: number): Promise<Favorite> => {
-    const response = await api.post<Favorite>(`/favorites/${productId}`);
+  addToFavorites: async (variantId: number): Promise<Favorite> => {
+    const response = await api.post<Favorite>(`/favorites/${variantId}`);
     return response.data;
   },
 
-  removeFromFavorites: async (productId: number): Promise<void> => {
-    await api.delete(`/favorites/${productId}`);
+  removeFromFavorites: async (variantId: number): Promise<void> => {
+    await api.delete(`/favorites/${variantId}`);
   },
 };

@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, Text, Integer, Numeric, Boolean, DateTime, JSON
+from sqlalchemy import String, Text, Integer, Numeric, Boolean, DateTime, JSON, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
 
@@ -12,20 +12,13 @@ class Product(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(255), index=True)
     description: Mapped[str] = mapped_column(Text)
-    price: Mapped[float] = mapped_column(Numeric(10, 2))
-    old_price: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
 
     category: Mapped[str] = mapped_column(String(100), index=True)
     subcategory: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
-    images: Mapped[list] = mapped_column(JSON, default=list)
-
-    dimensions: Mapped[str | None] = mapped_column(String(100), nullable=True)  # e.g., "200x90x85"
     materials: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    color: Mapped[str | None] = mapped_column(String(50), nullable=True)
-
-    in_stock: Mapped[bool] = mapped_column(Boolean, default=True)
-    stock_quantity: Mapped[int] = mapped_column(Integer, default=0)
+    # Default cm dimensions for the model — variants may override per size.
+    dimensions: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     rating: Mapped[float] = mapped_column(Numeric(2, 1), default=0)
     reviews_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -33,16 +26,28 @@ class Product(Base):
     is_popular: Mapped[bool] = mapped_column(Boolean, default=False)
     is_new: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    # 3D-model URLs for AR / 3D-viewer on product page. Both nullable —
-    # only products with a model show the viewer block.
+    # 3D-model URLs for AR / 3D-viewer on product page. Stays at product-level
+    # (geometry doesn't change between color variants of the same model).
     model_glb_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     model_usdz_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     embedding = mapped_column(Vector(1024), nullable=True)
 
+    # Which variant to show by default in catalog listings + initial state of
+    # product page. Nullable so the FK can be created before variants exist;
+    # seed pipeline sets this after inserting variants.
+    default_variant_id: Mapped[int | None] = mapped_column(
+        ForeignKey("product_variants.id", ondelete="SET NULL", use_alter=True),
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    cart_items = relationship("CartItem", back_populates="product")
+    variants = relationship(
+        "ProductVariant",
+        back_populates="product",
+        cascade="all, delete-orphan",
+        foreign_keys="ProductVariant.product_id",
+    )
     order_items = relationship("OrderItem", back_populates="product")
-    favorites = relationship("Favorite", back_populates="product")

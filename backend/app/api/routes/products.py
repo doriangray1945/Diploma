@@ -1,17 +1,61 @@
+"""Public catalog endpoints. Variant-aware: filtering on price/color/in_stock
+walks through ProductVariant; serialization eager-loads variants[] and
+exposes a default-variant snapshot at the top level for legacy frontend
+code that expects product.price/images/color directly.
+"""
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import or_, select, func
+from sqlalchemy import or_, select, func, exists
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.semantic_config import MATERIAL_GROUPS, resolve_material
-from app.models import Product, Favorite, User, Category
-from app.schemas import ProductResponse, ProductListResponse, CategoryResponse
+from app.models import Product, ProductVariant, Favorite, User, Category
+from app.schemas import ProductResponse, ProductListResponse, ProductVariantResponse, CategoryResponse
 from app.api.deps import get_current_user_optional
 from app.services.products import apply_search_filter
 
 router = APIRouter()
+
+
+def _serialize_product(product: Product, favorite_variant_ids: set[int]) -> ProductResponse:
+    """Build ProductResponse with default-variant snapshot fields populated."""
+    variants_sorted = sorted(
+        product.variants, key=lambda v: (not v.is_default, v.id)
+    )
+    default = next(
+        (v for v in variants_sorted if v.is_default),
+        variants_sorted[0] if variants_sorted else None,
+    )
+    is_favorite = any(v.id in favorite_variant_ids for v in variants_sorted)
+    return ProductResponse(
+        id=product.id,
+        name=product.name,
+        description=product.description,
+        category=product.category,
+        subcategory=product.subcategory,
+        materials=product.materials,
+        dimensions=product.dimensions,
+        rating=float(product.rating),
+        reviews_count=product.reviews_count,
+        is_popular=product.is_popular,
+        is_new=product.is_new,
+        model_glb_url=product.model_glb_url,
+        model_usdz_url=product.model_usdz_url,
+        created_at=product.created_at,
+        is_favorite=is_favorite,
+        default_variant_id=product.default_variant_id,
+        variants=[ProductVariantResponse.model_validate(v) for v in variants_sorted],
+        # Default-variant snapshot (legacy compat for frontend reading product.price etc).
+        price=float(default.price) if default else 0.0,
+        old_price=float(default.old_price) if default and default.old_price else None,
+        images=default.images if default else [],
+        color=default.color if default else None,
+        in_stock=default.in_stock if default else False,
+        stock_quantity=default.stock_quantity if default else 0,
+    )
 
 
 @router.get("", response_model=ProductListResponse)
@@ -38,19 +82,26 @@ async def get_products(
         base = base.where(Product.category == category)
     if subcategory:
         base = base.where(Product.subcategory == subcategory)
+
+    # Variant-level filters: price/color/in_stock are EXISTS subqueries on
+    # product_variants. A product passes if at least one of its variants matches.
+    variant_filters: list = []
     if min_price is not None:
-        base = base.where(Product.price >= min_price)
+        variant_filters.append(ProductVariant.price >= min_price)
     if max_price is not None:
-        base = base.where(Product.price <= max_price)
+        variant_filters.append(ProductVariant.price <= max_price)
+    if in_stock is not None:
+        variant_filters.append(ProductVariant.in_stock == in_stock)
     if color:
-        # FastAPI's `Query(None)` for `list[str]` already returns a list.
-        # Multi-value color: OR'd ILIKE.
-        base = base.where(or_(*[
-            Product.color.ilike(f"%{c}%") for c in color if c
+        variant_filters.append(or_(*[
+            ProductVariant.color.ilike(f"%{c}%") for c in color if c
         ]))
+    if variant_filters:
+        base = base.where(exists().where(
+            ProductVariant.product_id == Product.id, *variant_filters
+        ))
+
     if material:
-        # Multi-value material: each label expands via MATERIAL_GROUPS, all
-        # substrings OR'd into a single big WHERE.
         all_substrings: list[str] = []
         for m in material:
             all_substrings.extend(resolve_material(m))
@@ -58,67 +109,49 @@ async def get_products(
             base = base.where(or_(*[
                 Product.materials.ilike(f"%{s}%") for s in all_substrings
             ]))
-    if in_stock is not None:
-        base = base.where(Product.in_stock == in_stock)
     if is_popular is not None:
         base = base.where(Product.is_popular == is_popular)
     if is_new is not None:
         base = base.where(Product.is_new == is_new)
 
-    # Apply BM25 full-text search via pg_search. When `search` is set the
-    # query is reordered by `paradedb.score()` inside the helper; when it's
-    # not, we honour the user's sort_by/sort_order below.
+    # BM25 full-text search via pg_search (operates on Product fields).
     query = apply_search_filter(base, search)
 
     count_query = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_query)).scalar() or 0
 
     if not search:
-        sort_column = getattr(Product, sort_by)
-        query = query.order_by(sort_column.desc() if sort_order == "desc" else sort_column.asc())
+        # `price` is now on variant — sort_by=price uses default variant's price.
+        if sort_by == "price":
+            # Subquery: default variant's price per product.
+            default_price_sq = (
+                select(ProductVariant.price)
+                .where(
+                    ProductVariant.product_id == Product.id,
+                    ProductVariant.is_default == True,  # noqa: E712
+                )
+                .scalar_subquery()
+            )
+            order_col = default_price_sq
+        else:
+            order_col = getattr(Product, sort_by)
+        query = query.order_by(order_col.desc() if sort_order == "desc" else order_col.asc())
 
-    # Pagination
     offset = (page - 1) * per_page
-    query = query.offset(offset).limit(per_page)
+    query = query.offset(offset).limit(per_page).options(selectinload(Product.variants))
 
     result = await db.execute(query)
     products = result.scalars().all()
 
-    # Get user's favorites
-    favorite_product_ids = set()
+    # User's favorites — at variant level.
+    favorite_variant_ids: set[int] = set()
     if current_user:
         fav_result = await db.execute(
-            select(Favorite.product_id).where(Favorite.user_id == current_user.id)
+            select(Favorite.variant_id).where(Favorite.user_id == current_user.id)
         )
-        favorite_product_ids = set(fav_result.scalars().all())
+        favorite_variant_ids = set(fav_result.scalars().all())
 
-    # Build response
-    items = []
-    for product in products:
-        product_dict = {
-            "id": product.id,
-            "name": product.name,
-            "description": product.description,
-            "price": float(product.price),
-            "old_price": float(product.old_price) if product.old_price else None,
-            "category": product.category,
-            "subcategory": product.subcategory,
-            "images": product.images,
-            "dimensions": product.dimensions,
-            "materials": product.materials,
-            "color": product.color,
-            "in_stock": product.in_stock,
-            "stock_quantity": product.stock_quantity,
-            "rating": float(product.rating),
-            "reviews_count": product.reviews_count,
-            "is_popular": product.is_popular,
-            "is_new": product.is_new,
-            "model_glb_url": product.model_glb_url,
-            "model_usdz_url": product.model_usdz_url,
-            "created_at": product.created_at,
-            "is_favorite": product.id in favorite_product_ids
-        }
-        items.append(ProductResponse(**product_dict))
+    items = [_serialize_product(p, favorite_variant_ids) for p in products]
 
     pages = (total + per_page - 1) // per_page
 
@@ -136,17 +169,16 @@ async def get_filter_options(
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     """Return enum values for the catalog filter UI: categories, materials,
-    colors, price range. Used by the React FilterSidebar to populate
-    dropdowns/checkboxes.
+    colors, price range. Color and price come from variant table now.
     """
     cat_rows = (await db.execute(
         select(Product.category).distinct()
     )).scalars().all()
     color_rows = (await db.execute(
-        select(Product.color).distinct().where(Product.color.isnot(None))
+        select(ProductVariant.color).distinct().where(ProductVariant.color.isnot(None))
     )).scalars().all()
     price_row = (await db.execute(
-        select(func.min(Product.price), func.max(Product.price))
+        select(func.min(ProductVariant.price), func.max(ProductVariant.price))
     )).one()
 
     return {
@@ -164,8 +196,6 @@ async def get_filter_options(
 async def get_categories(
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
-    # Pull canonical list from the categories table; counts and subcategories
-    # come from products. Categories without products show count=0.
     cats = (await db.execute(
         select(Category).order_by(Category.sort_order, Category.name)
     )).scalars().all()
@@ -197,43 +227,21 @@ async def get_product(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User | None, Depends(get_current_user_optional)]
 ):
-    result = await db.execute(select(Product).where(Product.id == product_id))
+    result = await db.execute(
+        select(Product)
+        .where(Product.id == product_id)
+        .options(selectinload(Product.variants))
+    )
     product = result.scalar_one_or_none()
 
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # Check if favorite
-    is_favorite = False
+    favorite_variant_ids: set[int] = set()
     if current_user:
         fav_result = await db.execute(
-            select(Favorite).where(
-                Favorite.user_id == current_user.id,
-                Favorite.product_id == product_id
-            )
+            select(Favorite.variant_id).where(Favorite.user_id == current_user.id)
         )
-        is_favorite = fav_result.scalar_one_or_none() is not None
+        favorite_variant_ids = set(fav_result.scalars().all())
 
-    return ProductResponse(
-        id=product.id,
-        name=product.name,
-        description=product.description,
-        price=float(product.price),
-        old_price=float(product.old_price) if product.old_price else None,
-        category=product.category,
-        subcategory=product.subcategory,
-        images=product.images,
-        dimensions=product.dimensions,
-        materials=product.materials,
-        color=product.color,
-        in_stock=product.in_stock,
-        stock_quantity=product.stock_quantity,
-        rating=float(product.rating),
-        reviews_count=product.reviews_count,
-        is_popular=product.is_popular,
-        is_new=product.is_new,
-        model_glb_url=product.model_glb_url,
-        model_usdz_url=product.model_usdz_url,
-        created_at=product.created_at,
-        is_favorite=is_favorite
-    )
+    return _serialize_product(product, favorite_variant_ids)

@@ -43,26 +43,64 @@ export interface InventorySummary {
   low_stock_count: number;
 }
 
+export interface AdminVariant {
+  id: number;
+  product_id: number;
+  color?: string | null;
+  size_label?: string | null;
+  dimensions?: { width: number; depth: number; height: number } | null;
+  price: number;
+  old_price?: number | null;
+  stock_quantity: number;
+  in_stock: boolean;
+  images: string[];
+  sku?: string | null;
+  is_default: boolean;
+}
+
+export interface AdminVariantCreate {
+  color?: string | null;
+  size_label?: string | null;
+  dimensions?: { width: number; depth: number; height: number } | null;
+  price: number;
+  old_price?: number | null;
+  stock_quantity?: number;
+  images?: string[];
+  sku?: string | null;
+  is_default?: boolean;
+}
+
+export interface AdminVariantUpdate {
+  // Optional id lets the parent PATCH /admin/products/{id} sync the list
+  // (id present → update; id missing → insert; absent ids → delete).
+  id?: number;
+  color?: string | null;
+  size_label?: string | null;
+  dimensions?: { width: number; depth: number; height: number } | null;
+  price?: number;
+  old_price?: number | null;
+  stock_quantity?: number;
+  images?: string[];
+  sku?: string | null;
+  is_default?: boolean;
+}
+
 export interface AdminProduct {
   id: number;
   name: string;
   description: string;
-  price: number;
-  old_price?: number | null;
   category: string;
   subcategory?: string | null;
-  images: string[];
-  dimensions?: string | null;
   materials?: string | null;
-  color?: string | null;
-  in_stock: boolean;
-  stock_quantity: number;
+  dimensions?: { width: number; depth: number; height: number } | null;
   rating: number;
   reviews_count: number;
   is_popular: boolean;
   is_new: boolean;
   model_glb_url?: string | null;
   model_usdz_url?: string | null;
+  default_variant_id: number | null;
+  variants: AdminVariant[];
   created_at: string;
   updated_at: string;
 }
@@ -78,17 +116,39 @@ export interface AdminProductFilters {
   in_stock?: boolean;
   low_stock?: boolean;
   threshold?: number;
-  sort_by?: 'created_at' | 'price' | 'name' | 'stock_quantity';
+  sort_by?: 'created_at' | 'name';
   sort_order?: 'asc' | 'desc';
   page?: number;
   per_page?: number;
 }
 
-export type AdminProductCreate = Omit<
-  AdminProduct,
-  'id' | 'rating' | 'reviews_count' | 'created_at' | 'updated_at'
->;
-export type AdminProductUpdate = Partial<AdminProductCreate>;
+export interface AdminProductCreate {
+  name: string;
+  description: string;
+  category: string;
+  subcategory?: string | null;
+  materials?: string | null;
+  dimensions?: { width: number; depth: number; height: number } | null;
+  is_popular?: boolean;
+  is_new?: boolean;
+  model_glb_url?: string | null;
+  model_usdz_url?: string | null;
+  variants: AdminVariantCreate[];
+}
+
+export interface AdminProductUpdate {
+  name?: string;
+  description?: string;
+  category?: string;
+  subcategory?: string | null;
+  materials?: string | null;
+  dimensions?: { width: number; depth: number; height: number } | null;
+  is_popular?: boolean;
+  is_new?: boolean;
+  model_glb_url?: string | null;
+  model_usdz_url?: string | null;
+  variants?: AdminVariantUpdate[];
+}
 
 export interface AdminCategory {
   id: number;
@@ -157,11 +217,34 @@ export const adminApi = {
     await api.delete(`/admin/products/${id}`);
   },
   getProduct: async (id: number): Promise<AdminProduct> => {
-    // Reuse list with id filter trick or fetch from public endpoint; simpler: list then find
-    const r = await api.get<AdminProductListResponse>(`/admin/products?per_page=200`);
-    const found = r.data.items.find((p) => p.id === id);
-    if (!found) throw new Error('Product not found');
-    return found;
+    const r = await api.get<AdminProduct>(`/admin/products/${id}`);
+    return r.data;
+  },
+
+  // Single-variant operations (used by inline edit on ProductsPage).
+  addVariant: async (productId: number, body: AdminVariantCreate): Promise<AdminVariant> => {
+    const r = await api.post<AdminVariant>(`/admin/products/${productId}/variants`, body);
+    return r.data;
+  },
+  updateVariant: async (variantId: number, body: AdminVariantUpdate): Promise<AdminVariant> => {
+    const r = await api.patch<AdminVariant>(`/admin/products/variants/${variantId}`, body);
+    return r.data;
+  },
+  deleteVariant: async (variantId: number): Promise<void> => {
+    await api.delete(`/admin/products/variants/${variantId}`);
+  },
+
+  // Image upload to MinIO. Returns { url, key }; we keep `url` and put it on
+  // a variant's images list before the next save.
+  uploadImage: async (file: File): Promise<{ url: string; key: string }> => {
+    const fd = new FormData();
+    fd.append('file', file);
+    const r = await api.post<{ url: string; key: string }>(
+      '/admin/products/images/upload',
+      fd,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return r.data;
   },
 
   listCategories: async (): Promise<AdminCategory[]> => {

@@ -59,14 +59,20 @@ export default function InventoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threshold]);
 
-  const adjust = async (id: number, value: number) => {
+  const adjust = async (id: number, variantId: number, value: number) => {
     setSavingIds((s) => new Set(s).add(id));
     try {
-      const updated = await adminApi.updateProduct(id, { stock_quantity: value });
+      const updatedVariant = await adminApi.updateVariant(variantId, { stock_quantity: value });
       setItems((prev) =>
-        prev.map((p) => (p.id === id ? updated : p)).filter((p) => p.stock_quantity < threshold && p.in_stock || p.id === id),
+        prev.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                variants: p.variants.map((v) => (v.id === variantId ? updatedVariant : v)),
+              }
+            : p,
+        ),
       );
-      // refresh summary
       setSummary(await adminApi.inventorySummary(threshold));
     } finally {
       setSavingIds((s) => {
@@ -76,6 +82,12 @@ export default function InventoryPage() {
       });
     }
   };
+
+  const getDefaultVariant = (p: AdminProduct) =>
+    p.variants.find((v) => v.id === p.default_variant_id) ??
+    p.variants.find((v) => v.is_default) ??
+    p.variants[0] ??
+    null;
 
   return (
     <div className="space-y-4">
@@ -142,27 +154,36 @@ export default function InventoryPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {items.map((p) => (
+              {items.map((p) => {
+                const dv = getDefaultVariant(p);
+                const stock = dv?.stock_quantity ?? 0;
+                return (
                 <tr key={p.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3">
                     <p className="font-medium text-slate-900">{p.name}</p>
+                    {dv && (dv.color || dv.size_label) && (
+                      <p className="text-xs text-slate-500">
+                        {[dv.color, dv.size_label].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-slate-600">{p.category}</td>
                   <td className="px-4 py-3 text-right">
                     <input
                       type="number"
                       min={0}
-                      defaultValue={p.stock_quantity}
-                      disabled={savingIds.has(p.id)}
+                      defaultValue={stock}
+                      disabled={!dv || savingIds.has(p.id)}
                       onBlur={(e) => {
+                        if (!dv) return;
                         const v = Number(e.target.value);
-                        if (!Number.isNaN(v) && v !== p.stock_quantity) adjust(p.id, v);
+                        if (!Number.isNaN(v) && v !== stock) adjust(p.id, dv.id, v);
                       }}
                       className="w-20 px-2 py-1 text-right border border-slate-200 rounded focus:outline-none focus:border-slate-400"
                     />
                   </td>
                   <td className="px-4 py-3 text-center">
-                    {p.stock_quantity === 0 ? (
+                    {stock === 0 ? (
                       <span className="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
                         Нет
                       </span>
@@ -181,7 +202,8 @@ export default function InventoryPage() {
                     </Link>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}

@@ -21,6 +21,15 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str | None = None
     ADMIN_PASSWORD: str | None = None
 
+    # MinIO S3 object storage. Bucket holds catalog product images.
+    # MINIO_ENDPOINT is the in-network address used by backend (e.g. compose service name).
+    # MINIO_PUBLIC_ENDPOINT is what gets stored in DB/served to browsers.
+    MINIO_ENDPOINT: str = "http://localhost:9000"
+    MINIO_PUBLIC_ENDPOINT: str = "http://localhost:9000"
+    MINIO_ACCESS_KEY: str = "minioadmin"
+    MINIO_SECRET_KEY: str = "minioadmin123"
+    MINIO_BUCKET: str = "furniture-images"
+
     class Config:
         env_file = ".env"
         case_sensitive = True

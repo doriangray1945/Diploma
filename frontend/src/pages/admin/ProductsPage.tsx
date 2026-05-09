@@ -1,11 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Trash2, Pencil, Search, AlertTriangle } from 'lucide-react';
-import { adminApi, type AdminProduct } from '../../api/admin';
+import { adminApi, type AdminProduct, type AdminVariant } from '../../api/admin';
 import { productsApi } from '../../api/products';
 
-const fmtRub = (n: number) =>
-  new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(n);
+function getDefaultVariant(p: AdminProduct): AdminVariant | null {
+  return (
+    p.variants.find((v) => v.id === p.default_variant_id) ??
+    p.variants.find((v) => v.is_default) ??
+    p.variants[0] ??
+    null
+  );
+}
 
 export default function ProductsPage() {
   const [items, setItems] = useState<AdminProduct[]>([]);
@@ -44,15 +50,29 @@ export default function ProductsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, categoryFilter, lowStockOnly]);
 
-  const patchField = async (id: number, field: 'price' | 'stock_quantity', value: number) => {
-    setSavingIds((s) => new Set(s).add(id));
+  const patchVariantField = async (
+    productId: number,
+    variantId: number,
+    field: 'price' | 'stock_quantity',
+    value: number,
+  ) => {
+    setSavingIds((s) => new Set(s).add(productId));
     try {
-      const updated = await adminApi.updateProduct(id, { [field]: value });
-      setItems((prev) => prev.map((p) => (p.id === id ? updated : p)));
+      const updatedVariant = await adminApi.updateVariant(variantId, { [field]: value });
+      setItems((prev) =>
+        prev.map((p) =>
+          p.id === productId
+            ? {
+                ...p,
+                variants: p.variants.map((v) => (v.id === variantId ? updatedVariant : v)),
+              }
+            : p,
+        ),
+      );
     } finally {
       setSavingIds((s) => {
         const next = new Set(s);
-        next.delete(id);
+        next.delete(productId);
         return next;
       });
     }
@@ -140,13 +160,16 @@ export default function ProductsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {items.map((p) => (
+                {items.map((p) => {
+                  const dv = getDefaultVariant(p);
+                  const dvImages = dv?.images ?? [];
+                  return (
                   <tr key={p.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3 max-w-md">
-                        {p.images?.[0] ? (
+                        {dvImages[0] ? (
                           <img
-                            src={p.images[0]}
+                            src={dvImages[0]}
                             alt=""
                             className="w-10 h-10 rounded object-cover bg-slate-100"
                             onError={(e) => ((e.target as HTMLImageElement).style.visibility = 'hidden')}
@@ -156,7 +179,11 @@ export default function ProductsPage() {
                         )}
                         <div className="min-w-0">
                           <p className="font-medium text-slate-900 truncate">{p.name}</p>
-                          <p className="text-xs text-slate-500 truncate">{p.description}</p>
+                          <p className="text-xs text-slate-500 truncate">
+                            {p.variants.length} вариант{p.variants.length === 1 ? '' : p.variants.length < 5 ? 'а' : 'ов'}
+                            {dv?.color ? ` · ${dv.color}` : ''}
+                            {dv?.size_label ? ` · ${dv.size_label}` : ''}
+                          </p>
                         </div>
                       </div>
                     </td>
@@ -165,11 +192,12 @@ export default function ProductsPage() {
                       <input
                         type="number"
                         min={0}
-                        defaultValue={p.price}
-                        disabled={savingIds.has(p.id)}
+                        defaultValue={dv?.price ?? 0}
+                        disabled={!dv || savingIds.has(p.id)}
                         onBlur={(e) => {
+                          if (!dv) return;
                           const v = Number(e.target.value);
-                          if (!Number.isNaN(v) && v !== p.price) patchField(p.id, 'price', v);
+                          if (!Number.isNaN(v) && v !== dv.price) patchVariantField(p.id, dv.id, 'price', v);
                         }}
                         className="w-24 px-2 py-1 text-right border border-slate-200 rounded focus:outline-none focus:border-slate-400"
                       />
@@ -178,21 +206,23 @@ export default function ProductsPage() {
                       <input
                         type="number"
                         min={0}
-                        defaultValue={p.stock_quantity}
-                        disabled={savingIds.has(p.id)}
+                        defaultValue={dv?.stock_quantity ?? 0}
+                        disabled={!dv || savingIds.has(p.id)}
                         onBlur={(e) => {
+                          if (!dv) return;
                           const v = Number(e.target.value);
-                          if (!Number.isNaN(v) && v !== p.stock_quantity) patchField(p.id, 'stock_quantity', v);
+                          if (!Number.isNaN(v) && v !== dv.stock_quantity)
+                            patchVariantField(p.id, dv.id, 'stock_quantity', v);
                         }}
                         className="w-20 px-2 py-1 text-right border border-slate-200 rounded focus:outline-none focus:border-slate-400"
                       />
                     </td>
                     <td className="px-4 py-3 text-center">
-                      {!p.in_stock ? (
+                      {!dv?.in_stock ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
                           <AlertTriangle className="w-3 h-3" /> Нет
                         </span>
-                      ) : p.stock_quantity < 5 ? (
+                      ) : (dv?.stock_quantity ?? 0) < 5 ? (
                         <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">
                           Мало
                         </span>
@@ -222,7 +252,8 @@ export default function ProductsPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

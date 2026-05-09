@@ -46,6 +46,17 @@ async def apply_inline_migrations():
         await conn.execute(text(
             "ALTER TABLE products ADD COLUMN IF NOT EXISTS model_usdz_url VARCHAR(500)"
         ))
+        # Track which SKU was bought so analytics can group_by color/size.
+        # SET NULL on variant delete keeps order history intact.
+        await conn.execute(text(
+            "ALTER TABLE order_items "
+            "ADD COLUMN IF NOT EXISTS variant_id INTEGER "
+            "REFERENCES product_variants(id) ON DELETE SET NULL"
+        ))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_order_items_variant_id "
+            "ON order_items (variant_id)"
+        ))
         # Switch from nomic-embed-text (dim=768) to bge-m3 (dim=1024). Old
         # vectors are incompatible after model swap. Run the destructive
         # ALTER ... USING NULL only when the column is still at 768; once
@@ -77,9 +88,13 @@ async def apply_inline_migrations():
         # the index and the query, and `apply_search_filter` can rank
         # any inflected form. Queried via the `field @@@ 'text'` operator
         # and ranked by `paradedb.score(id) DESC`. Idempotent.
+        # `color` moved to product_variants and was removed from products.
+        # Drop any stale BM25 index that references it before recreating
+        # without the column.
+        await conn.execute(text("DROP INDEX IF EXISTS products_bm25_idx"))
         await conn.execute(text("""
             CREATE INDEX IF NOT EXISTS products_bm25_idx ON products
-            USING bm25 (id, name, description, category, subcategory, materials, color)
+            USING bm25 (id, name, description, category, subcategory, materials)
             WITH (
                 key_field = 'id',
                 text_fields = '{
@@ -87,8 +102,7 @@ async def apply_inline_migrations():
                     "description": {"tokenizer": {"type": "default", "stemmer": "Russian"}},
                     "category":    {"tokenizer": {"type": "default", "stemmer": "Russian"}},
                     "subcategory": {"tokenizer": {"type": "default", "stemmer": "Russian"}},
-                    "materials":   {"tokenizer": {"type": "default", "stemmer": "Russian"}},
-                    "color":       {"tokenizer": {"type": "default", "stemmer": "Russian"}}
+                    "materials":   {"tokenizer": {"type": "default", "stemmer": "Russian"}}
                 }'
             )
         """))

@@ -59,50 +59,118 @@ async def create_order(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)]
 ):
-    # Get cart items
+    """Create an order from the user's cart.
+
+    Atomic: SELECT ... FOR UPDATE on each variant locks rows for the duration
+    of the transaction, preventing concurrent buyers from oversubscribing
+    stock. If any variant has insufficient stock, returns 409 with details
+    and rolls back without touching cart or stock.
+    """
+    from app.models import ProductVariant
     cart_result = await db.execute(
         select(CartItem)
         .where(CartItem.user_id == current_user.id)
-        .options(selectinload(CartItem.product))
+        .options(
+            selectinload(CartItem.variant)
+            .selectinload(ProductVariant.product)
+        )
     )
-    cart_items = cart_result.scalars().all()
+    cart_items = list(cart_result.scalars().all())
 
     if not cart_items:
         raise HTTPException(status_code=400, detail="Cart is empty")
 
-    # Calculate total and create order items
+    # Lock the variant rows for the transaction. Concurrent checkout of the
+    # same SKU blocks here until our commit/rollback completes.
+    variant_ids = list({ci.variant_id for ci in cart_items})
+    locked_result = await db.execute(
+        select(ProductVariant)
+        .where(ProductVariant.id.in_(variant_ids))
+        .with_for_update()
+        .options(selectinload(ProductVariant.product))
+    )
+    locked_variants = {v.id: v for v in locked_result.scalars().all()}
+
+    # Reconcile cart against locked stock. Three states:
+    # - sold_out      → variant is gone; user must remove (hard block)
+    # - insufficient  → some left, but less than requested; recoverable if the
+    #                   user explicitly accepts clamping via accept_clamping
+    # - ok            → request fits stock entirely
+    sold_out: list[dict] = []
+    insufficient: list[dict] = []
+    for ci in cart_items:
+        v = locked_variants.get(ci.variant_id)
+        if v is None or v.stock_quantity == 0:
+            name = v.product.name if v and v.product else "(товар)"
+            sold_out.append({
+                "variant_id": ci.variant_id,
+                "name": name,
+                "color": v.color if v else None,
+                "size_label": v.size_label if v else None,
+                "reason": "sold_out",
+                "available": 0,
+                "requested": ci.quantity,
+            })
+        elif v.stock_quantity < ci.quantity:
+            insufficient.append({
+                "variant_id": v.id,
+                "name": v.product.name if v.product else "(товар)",
+                "color": v.color,
+                "size_label": v.size_label,
+                "reason": "insufficient",
+                "available": v.stock_quantity,
+                "requested": ci.quantity,
+            })
+
+    # Sold-out always blocks. Insufficient blocks unless user accepted clamping.
+    if sold_out or (insufficient and not order_data.accept_clamping):
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Корзина изменилась — некоторые товары недоступны",
+                "items": sold_out + insufficient,
+                "can_clamp": (not sold_out) and bool(insufficient),
+            },
+        )
+
+    # Build order, decrement stock, clear cart. With accept_clamping=True,
+    # insufficient items get qty = available; ok items use ci.quantity.
     total = 0.0
-    order_items = []
-    for cart_item in cart_items:
-        product = cart_item.product
-        item_total = float(product.price) * cart_item.quantity
+    order_items: list[OrderItem] = []
+    for ci in cart_items:
+        v = locked_variants[ci.variant_id]
+        actual_qty = min(ci.quantity, v.stock_quantity)
+        product = v.product
+        item_total = float(v.price) * actual_qty
         total += item_total
 
         order_items.append(OrderItem(
             product_id=product.id,
+            variant_id=v.id,
             product_name=product.name,
-            quantity=cart_item.quantity,
-            price=float(product.price)
+            quantity=actual_qty,
+            price=float(v.price),
         ))
 
-    # Create order
+        v.stock_quantity = v.stock_quantity - actual_qty
+        v.in_stock = v.stock_quantity > 0
+
     order = Order(
         user_id=current_user.id,
         status="pending",
         total=total,
         address=order_data.address,
         phone=order_data.phone,
-        comment=order_data.comment
+        comment=order_data.comment,
     )
     db.add(order)
     await db.flush()
 
-    # Add order items
     for item in order_items:
         item.order_id = order.id
         db.add(item)
 
-    # Clear cart
     for cart_item in cart_items:
         await db.delete(cart_item)
 
