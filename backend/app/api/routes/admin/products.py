@@ -334,8 +334,12 @@ async def create_product(
 
     await db.commit()
     # Refresh with eager-loaded variants for response.
+    # populate_existing=True bypasses ORM identity-map cache so newly inserted
+    # variants from this transaction show up in the response.
     result = await db.execute(
-        select(Product).where(Product.id == product.id).options(selectinload(Product.variants))
+        select(Product).where(Product.id == product.id)
+        .options(selectinload(Product.variants))
+        .execution_options(populate_existing=True)
     )
     return _product_to_response(result.scalar_one())
 
@@ -370,8 +374,12 @@ async def update_product(
         await _sync_variants(db, product, body.variants)
 
     await db.commit()
+    # populate_existing=True: refresh from DB instead of returning the
+    # ORM-cached variants list (which could miss inserts done in _sync_variants).
     result = await db.execute(
-        select(Product).where(Product.id == product.id).options(selectinload(Product.variants))
+        select(Product).where(Product.id == product.id)
+        .options(selectinload(Product.variants))
+        .execution_options(populate_existing=True)
     )
     return _product_to_response(result.scalar_one())
 
