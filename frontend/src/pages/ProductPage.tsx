@@ -190,7 +190,7 @@ export default function ProductPage() {
       </button>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 p-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 p-4 sm:p-8">
           {/* Image gallery */}
           <ProductImageGallery images={galleryImages} productName={product.name} />
 
@@ -219,7 +219,7 @@ export default function ProductPage() {
             <p className="text-sm text-slate-500 mb-2">{product.category}</p>
 
             {/* Name */}
-            <h1 className="text-3xl font-bold text-slate-900 mb-4">{product.name}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">{product.name}</h1>
 
             {/* Rating */}
             <div className="flex items-center gap-2 mb-6">
@@ -314,7 +314,7 @@ export default function ProductPage() {
             )}
 
             {/* Features */}
-            <div className="grid grid-cols-3 gap-4 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
               <div className="text-center p-4 bg-slate-50 rounded-xl">
                 <Truck className="w-6 h-6 text-slate-600 mx-auto mb-2" />
                 <p className="text-xs text-slate-600">Бесплатная доставка</p>
@@ -376,8 +376,8 @@ export default function ProductPage() {
 
         {/* 3D / AR — only if model URLs present */}
         {(product.model_glb_url || product.model_usdz_url) && (
-          <div className="border-t border-slate-200 p-8">
-            <div className="flex items-center justify-between mb-4">
+          <div className="border-t border-slate-200 p-4 sm:p-8">
+            <div className="flex items-center justify-between mb-4 gap-2">
               <h3 className="font-semibold text-slate-900">3D-модель</h3>
               <p className="text-xs text-slate-500 hidden lg:block">
                 Крутите модель мышкой
@@ -386,7 +386,7 @@ export default function ProductPage() {
                 Тапните «AR» — товар встанет в вашей комнате
               </p>
             </div>
-            <div className="w-full h-[400px] md:h-[500px] bg-slate-50 rounded-xl overflow-hidden">
+            <div className="w-full h-[280px] sm:h-[400px] md:h-[500px] bg-slate-50 rounded-xl overflow-hidden">
               <model-viewer
                 src={product.model_glb_url || undefined}
                 ios-src={product.model_usdz_url || undefined}
@@ -403,7 +403,7 @@ export default function ProductPage() {
         )}
 
         {/* Description */}
-        <div className="border-t border-slate-200 p-8">
+        <div className="border-t border-slate-200 p-4 sm:p-8">
           <h3 className="font-semibold text-slate-900 mb-4">Описание</h3>
           <p className="text-slate-600 leading-relaxed">{product.description}</p>
         </div>

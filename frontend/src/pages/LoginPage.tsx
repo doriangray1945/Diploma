@@ -33,7 +33,7 @@ export default function LoginPage() {
         </div>
 
         {/* Form */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8">
           <h2 className="text-2xl font-bold text-slate-900 mb-6">Вход</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">

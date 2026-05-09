@@ -99,7 +99,8 @@ export default function CategoriesPage() {
         ) : items.length === 0 ? (
           <div className="p-12 text-center text-slate-500">Пока нет категорий.</div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[600px]">
             <thead className="bg-slate-50 text-slate-600 text-xs uppercase">
               <tr>
                 <th className="px-4 py-3 text-left">Название</th>
@@ -171,6 +172,7 @@ export default function CategoriesPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

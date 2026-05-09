@@ -101,12 +101,12 @@ export default function CartPage() {
             return (
               <div
                 key={item.id}
-                className={clsx('p-6 flex gap-6', soldOut && 'opacity-60 bg-slate-50/50')}
+                className={clsx('p-4 sm:p-6 flex flex-col sm:flex-row gap-4 sm:gap-6', soldOut && 'opacity-60 bg-slate-50/50')}
               >
                 {/* Image */}
                 <Link
                   to={`/product/${item.product.id}`}
-                  className="w-32 h-24 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0"
+                  className="w-full sm:w-32 h-40 sm:h-24 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0"
                 >
                   <img
                     src={imageUrl}
