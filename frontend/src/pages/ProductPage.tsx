@@ -375,8 +375,9 @@ export default function ProductPage() {
           </div>
         </div>
 
-        {/* 3D / AR — only if model URLs present */}
-        {(product.model_glb_url || product.model_usdz_url) && (
+        {/* 3D / AR — only if the SELECTED variant has a model URL.
+            Per-variant URLs let the model swap together with colour/size. */}
+        {(selectedVariant?.model_glb_url || selectedVariant?.model_usdz_url) && (
           <div className="border-t border-slate-200 p-4 sm:p-8">
             <div className="flex items-center justify-between mb-4 gap-2">
               <h3 className="font-semibold text-slate-900">3D-модель</h3>
@@ -389,8 +390,9 @@ export default function ProductPage() {
             </div>
             <div className="w-full h-[280px] sm:h-[400px] md:h-[500px] bg-slate-50 rounded-xl overflow-hidden">
               <model-viewer
-                src={product.model_glb_url || undefined}
-                ios-src={product.model_usdz_url || undefined}
+                key={selectedVariant.id}
+                src={selectedVariant.model_glb_url || undefined}
+                ios-src={selectedVariant.model_usdz_url || undefined}
                 ar
                 ar-modes="webxr scene-viewer quick-look"
                 camera-controls

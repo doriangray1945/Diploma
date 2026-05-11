@@ -57,6 +57,8 @@ export interface AdminVariant {
   images: string[];
   sku?: string | null;
   is_default: boolean;
+  model_glb_url?: string | null;
+  model_usdz_url?: string | null;
 }
 
 export interface AdminVariantCreate {
@@ -69,6 +71,8 @@ export interface AdminVariantCreate {
   images?: string[];
   sku?: string | null;
   is_default?: boolean;
+  model_glb_url?: string | null;
+  model_usdz_url?: string | null;
 }
 
 export interface AdminVariantUpdate {
@@ -84,6 +88,8 @@ export interface AdminVariantUpdate {
   images?: string[];
   sku?: string | null;
   is_default?: boolean;
+  model_glb_url?: string | null;
+  model_usdz_url?: string | null;
 }
 
 export interface AdminProduct {
@@ -98,8 +104,6 @@ export interface AdminProduct {
   reviews_count: number;
   is_popular: boolean;
   is_new: boolean;
-  model_glb_url?: string | null;
-  model_usdz_url?: string | null;
   default_variant_id: number | null;
   variants: AdminVariant[];
   created_at: string;
@@ -132,8 +136,6 @@ export interface AdminProductCreate {
   dimensions?: { width: number; depth: number; height: number } | null;
   is_popular?: boolean;
   is_new?: boolean;
-  model_glb_url?: string | null;
-  model_usdz_url?: string | null;
   variants: AdminVariantCreate[];
 }
 
@@ -146,8 +148,6 @@ export interface AdminProductUpdate {
   dimensions?: { width: number; depth: number; height: number } | null;
   is_popular?: boolean;
   is_new?: boolean;
-  model_glb_url?: string | null;
-  model_usdz_url?: string | null;
   variants?: AdminVariantUpdate[];
 }
 

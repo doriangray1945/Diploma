@@ -31,6 +31,13 @@ export default defineConfig({
         target: 'http://backend:8000',
         changeOrigin: true,
       },
+      // MinIO objects (images + GLB models) — proxied so phone clients on the
+      // LAN can reach them through the vite host without exposing port 9000.
+      '/minio': {
+        target: 'http://minio:9000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/minio/, ''),
+      },
     },
   },
 })

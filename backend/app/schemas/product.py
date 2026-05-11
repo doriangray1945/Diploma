@@ -15,6 +15,8 @@ class ProductVariantResponse(BaseModel):
     images: list[str] = []
     sku: str | None = None
     is_default: bool = False
+    model_glb_url: str | None = None
+    model_usdz_url: str | None = None
 
     class Config:
         from_attributes = True
@@ -27,8 +29,6 @@ class ProductBase(BaseModel):
     subcategory: str | None = None
     materials: str | None = None
     dimensions: dict | None = None
-    model_glb_url: str | None = None
-    model_usdz_url: str | None = None
 
 
 class ProductResponse(ProductBase):

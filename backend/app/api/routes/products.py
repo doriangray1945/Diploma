@@ -42,8 +42,6 @@ def _serialize_product(product: Product, favorite_variant_ids: set[int]) -> Prod
         reviews_count=product.reviews_count,
         is_popular=product.is_popular,
         is_new=product.is_new,
-        model_glb_url=product.model_glb_url,
-        model_usdz_url=product.model_usdz_url,
         created_at=product.created_at,
         is_favorite=is_favorite,
         default_variant_id=product.default_variant_id,

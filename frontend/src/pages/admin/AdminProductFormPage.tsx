@@ -22,8 +22,6 @@ interface ProductFormState {
   dimensions_h: number | null;
   is_popular: boolean;
   is_new: boolean;
-  model_glb_url: string | null;
-  model_usdz_url: string | null;
 }
 
 const empty: ProductFormState = {
@@ -37,8 +35,6 @@ const empty: ProductFormState = {
   dimensions_h: null,
   is_popular: false,
   is_new: false,
-  model_glb_url: null,
-  model_usdz_url: null,
 };
 
 const emptyVariant = (isFirst: boolean): FormVariant => ({
@@ -50,6 +46,8 @@ const emptyVariant = (isFirst: boolean): FormVariant => ({
   images: [],
   sku: null,
   is_default: isFirst,
+  model_glb_url: null,
+  model_usdz_url: null,
 });
 
 export default function ProductFormPage() {
@@ -84,8 +82,6 @@ export default function ProductFormPage() {
           dimensions_h: p.dimensions?.height ?? null,
           is_popular: p.is_popular,
           is_new: p.is_new,
-          model_glb_url: p.model_glb_url ?? null,
-          model_usdz_url: p.model_usdz_url ?? null,
         });
         setVariants(
           p.variants.map((v): AdminVariantUpdate => ({
@@ -99,6 +95,8 @@ export default function ProductFormPage() {
             images: v.images,
             sku: v.sku,
             is_default: v.is_default,
+            model_glb_url: v.model_glb_url ?? null,
+            model_usdz_url: v.model_usdz_url ?? null,
           })),
         );
       })
@@ -138,8 +136,6 @@ export default function ProductFormPage() {
           dimensions,
           is_popular: form.is_popular,
           is_new: form.is_new,
-          model_glb_url: form.model_glb_url,
-          model_usdz_url: form.model_usdz_url,
           variants,
         };
         await adminApi.updateProduct(Number(id), payload);
@@ -153,8 +149,6 @@ export default function ProductFormPage() {
           dimensions,
           is_popular: form.is_popular,
           is_new: form.is_new,
-          model_glb_url: form.model_glb_url,
-          model_usdz_url: form.model_usdz_url,
           variants: variants.map((v) => ({
             color: v.color,
             size_label: v.size_label,
@@ -165,6 +159,8 @@ export default function ProductFormPage() {
             images: v.images ?? [],
             sku: v.sku,
             is_default: v.is_default,
+            model_glb_url: v.model_glb_url ?? null,
+            model_usdz_url: v.model_usdz_url ?? null,
           })),
         };
         await adminApi.createProduct(payload);
@@ -296,26 +292,6 @@ export default function ProductFormPage() {
               onChange={(e) => update('description', e.target.value)}
               rows={3}
               className="input"
-            />
-          </Field>
-
-          <Field label="3D-модель GLB" full>
-            <input
-              type="text"
-              value={form.model_glb_url ?? ''}
-              onChange={(e) => update('model_glb_url', e.target.value || null)}
-              className="input"
-              placeholder="/models/sofa.glb"
-            />
-          </Field>
-
-          <Field label="3D-модель USDZ (iOS AR)" full>
-            <input
-              type="text"
-              value={form.model_usdz_url ?? ''}
-              onChange={(e) => update('model_usdz_url', e.target.value || null)}
-              className="input"
-              placeholder="/models/sofa.usdz"
             />
           </Field>
 

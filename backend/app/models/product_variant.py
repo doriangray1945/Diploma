@@ -40,6 +40,11 @@ class ProductVariant(Base):
     images: Mapped[list] = mapped_column(JSON, default=list)
     sku: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
 
+    # 3D model URLs per variant: each color/size can carry its own GLB so the
+    # product page swaps geometry/colour when the user picks a variant.
+    model_glb_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    model_usdz_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
     # Exactly one default per product. Frontend uses this when the user
     # hasn't picked a variant yet (catalog cards, default product page state).
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)

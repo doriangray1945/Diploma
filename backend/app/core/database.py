@@ -40,11 +40,20 @@ async def apply_inline_migrations():
             "ALTER TABLE users "
             "ADD COLUMN IF NOT EXISTS is_superadmin BOOLEAN NOT NULL DEFAULT FALSE"
         ))
+        # 3D model URLs migrated from product to variant level so each colour/
+        # size can carry its own GLB. ADD on variants first (idempotent), then
+        # DROP on products (also idempotent — IF EXISTS).
         await conn.execute(text(
-            "ALTER TABLE products ADD COLUMN IF NOT EXISTS model_glb_url VARCHAR(500)"
+            "ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS model_glb_url VARCHAR(500)"
         ))
         await conn.execute(text(
-            "ALTER TABLE products ADD COLUMN IF NOT EXISTS model_usdz_url VARCHAR(500)"
+            "ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS model_usdz_url VARCHAR(500)"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE products DROP COLUMN IF EXISTS model_glb_url"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE products DROP COLUMN IF EXISTS model_usdz_url"
         ))
         # Track which SKU was bought so analytics can group_by color/size.
         # SET NULL on variant delete keeps order history intact.

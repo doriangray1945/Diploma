@@ -26,11 +26,6 @@ class Product(Base):
     is_popular: Mapped[bool] = mapped_column(Boolean, default=False)
     is_new: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    # 3D-model URLs for AR / 3D-viewer on product page. Stays at product-level
-    # (geometry doesn't change between color variants of the same model).
-    model_glb_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    model_usdz_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-
     embedding = mapped_column(Vector(1024), nullable=True)
 
     # Which variant to show by default in catalog listings + initial state of

@@ -53,7 +53,7 @@ services:
       ADMIN_EMAIL: admin@admin.com
       ADMIN_PASSWORD: admin12345
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_PUBLIC_ENDPOINT: http://localhost:9000
+      MINIO_PUBLIC_ENDPOINT: /minio
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin123
       MINIO_BUCKET: furniture-images

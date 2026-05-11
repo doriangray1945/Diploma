@@ -54,6 +54,8 @@ class VariantCreate(BaseModel):
     images: list[str] = Field(default_factory=list)
     sku: str | None = Field(default=None, max_length=100)
     is_default: bool = False
+    model_glb_url: str | None = Field(default=None, max_length=500)
+    model_usdz_url: str | None = Field(default=None, max_length=500)
 
 
 class VariantUpdate(BaseModel):
@@ -69,6 +71,8 @@ class VariantUpdate(BaseModel):
     images: list[str] | None = None
     sku: str | None = Field(default=None, max_length=100)
     is_default: bool | None = None
+    model_glb_url: str | None = Field(default=None, max_length=500)
+    model_usdz_url: str | None = Field(default=None, max_length=500)
 
 
 class VariantResponse(BaseModel):
@@ -84,6 +88,8 @@ class VariantResponse(BaseModel):
     images: list[str]
     sku: str | None
     is_default: bool
+    model_glb_url: str | None
+    model_usdz_url: str | None
 
     class Config:
         from_attributes = True
@@ -103,8 +109,6 @@ class AdminProductCreate(BaseModel):
     dimensions: dict | None = None
     is_popular: bool = False
     is_new: bool = False
-    model_glb_url: str | None = Field(default=None, max_length=500)
-    model_usdz_url: str | None = Field(default=None, max_length=500)
     variants: list[VariantCreate] = Field(min_length=1)
 
 
@@ -117,8 +121,6 @@ class AdminProductUpdate(BaseModel):
     dimensions: dict | None = None
     is_popular: bool | None = None
     is_new: bool | None = None
-    model_glb_url: str | None = Field(default=None, max_length=500)
-    model_usdz_url: str | None = Field(default=None, max_length=500)
     # If provided, performs smart sync (id-match → update, no id → insert,
     # absent ids → delete). If None / not provided, variants are untouched.
     variants: list[VariantUpdate] | None = None
@@ -136,8 +138,6 @@ class AdminProductResponse(BaseModel):
     reviews_count: int
     is_popular: bool
     is_new: bool
-    model_glb_url: str | None = None
-    model_usdz_url: str | None = None
     default_variant_id: int | None
     variants: list[VariantResponse]
     created_at: datetime
@@ -171,6 +171,8 @@ def _variant_to_response(v: ProductVariant) -> VariantResponse:
         images=list(v.images or []),
         sku=v.sku,
         is_default=v.is_default,
+        model_glb_url=v.model_glb_url,
+        model_usdz_url=v.model_usdz_url,
     )
 
 
@@ -182,7 +184,6 @@ def _product_to_response(p: Product) -> AdminProductResponse:
         materials=p.materials, dimensions=p.dimensions,
         rating=float(p.rating or 0), reviews_count=p.reviews_count or 0,
         is_popular=p.is_popular, is_new=p.is_new,
-        model_glb_url=p.model_glb_url, model_usdz_url=p.model_usdz_url,
         default_variant_id=p.default_variant_id,
         variants=[_variant_to_response(v) for v in variants],
         created_at=p.created_at, updated_at=p.updated_at,
@@ -303,8 +304,6 @@ async def create_product(
         dimensions=body.dimensions,
         is_popular=body.is_popular,
         is_new=body.is_new,
-        model_glb_url=body.model_glb_url,
-        model_usdz_url=body.model_usdz_url,
     )
     db.add(product)
     await db.flush()  # need product.id
@@ -325,6 +324,8 @@ async def create_product(
             images=list(vc.images or []),
             sku=vc.sku,
             is_default=(i == default_idx),
+            model_glb_url=vc.model_glb_url,
+            model_usdz_url=vc.model_usdz_url,
         )
         db.add(v)
         variants_created.append(v)
@@ -419,6 +420,8 @@ async def _sync_variants(
                 images=list(p.images or []),
                 sku=p.sku,
                 is_default=False,  # set below
+                model_glb_url=p.model_glb_url,
+                model_usdz_url=p.model_usdz_url,
             )
             db.add(v)
         # Track which entry corresponds to the chosen default index by index alignment.
@@ -515,6 +518,8 @@ async def add_variant(
         images=list(body.images or []),
         sku=body.sku,
         is_default=False,
+        model_glb_url=body.model_glb_url,
+        model_usdz_url=body.model_usdz_url,
     )
     db.add(v)
     await db.flush()

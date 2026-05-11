@@ -26,6 +26,8 @@ function emptyVariant(): FormVariant {
     images: [],
     sku: null,
     is_default: false,
+    model_glb_url: null,
+    model_usdz_url: null,
   };
 }
 
@@ -201,6 +203,28 @@ export default function ProductVariantsTable({ variants, onChange }: Props) {
                   <VariantImageUpload
                     images={v.images ?? []}
                     onChange={(images) => update(idx, { images })}
+                  />
+                </div>
+
+                {/* 3D models — per variant. */}
+                <div className="col-span-12 sm:col-span-6">
+                  <label className="block text-xs text-slate-500 mb-1">3D-модель GLB (web + Android AR)</label>
+                  <input
+                    type="text"
+                    value={v.model_glb_url ?? ''}
+                    onChange={(e) => update(idx, { model_glb_url: e.target.value || null })}
+                    placeholder="https://.../models/sofa-grey.glb"
+                    className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-md bg-white"
+                  />
+                </div>
+                <div className="col-span-12 sm:col-span-6">
+                  <label className="block text-xs text-slate-500 mb-1">3D-модель USDZ (iOS AR)</label>
+                  <input
+                    type="text"
+                    value={v.model_usdz_url ?? ''}
+                    onChange={(e) => update(idx, { model_usdz_url: e.target.value || null })}
+                    placeholder="https://.../models/sofa-grey.usdz"
+                    className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-md bg-white"
                   />
                 </div>
               </div>
