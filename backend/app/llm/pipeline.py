@@ -407,7 +407,7 @@ class Pipeline:
         if action == "apply_filters":
             if count == 0:
                 return "Не нашла подходящих товаров. Попробуйте изменить фильтры."
-            return f"Нашла {count} {'товар' if count == 1 else 'товара' if count < 5 else 'товаров'} — они в каталоге справа."
+            return f"Нашла {count} {'товар' if count == 1 else 'товара' if count < 5 else 'товаров'} — они в каталоге снизу."
         if action == "added_to_cart":
             # Подсчитываем сколько не добавили из-за лимита склада
             stock_failed = 0
