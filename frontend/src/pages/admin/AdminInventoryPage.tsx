@@ -38,10 +38,12 @@ export default function InventoryPage() {
   const [summary, setSummary] = useState<InventorySummary | null>(null);
   const [items, setItems] = useState<AdminProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [savingIds, setSavingIds] = useState<Set<number>>(new Set());
 
   const load = () => {
     setLoading(true);
+    setError(null);
     Promise.all([
       adminApi.inventorySummary(threshold),
       adminApi.listProducts({ low_stock: true, threshold, per_page: 100 }),
@@ -49,6 +51,11 @@ export default function InventoryPage() {
       .then(([s, p]) => {
         setSummary(s);
         setItems(p.items);
+      })
+      .catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error('Inventory load failed:', e);
+        setError(`Не удалось загрузить инвентарь: ${msg}`);
       })
       .finally(() => setLoading(false));
   };
@@ -92,6 +99,12 @@ export default function InventoryPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-slate-900">Инвентарь</h1>
+
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard

@@ -9,6 +9,7 @@ Not on request-path: serving is direct browser → MinIO.
 from __future__ import annotations
 
 import json
+import logging
 from io import BytesIO
 from typing import BinaryIO
 
@@ -17,6 +18,9 @@ from botocore.client import Config
 from botocore.exceptions import ClientError
 
 from app.core.config import settings
+
+
+log = logging.getLogger(__name__)
 
 
 _PUBLIC_READ_POLICY_TEMPLATE = {
@@ -69,17 +73,3 @@ class MinioStorage:
 
     def public_url(self, key: str) -> str:
         return f"{self.public_endpoint}/{self.bucket}/{key.lstrip('/')}"
-
-    def delete_key(self, key: str) -> None:
-        try:
-            self._client.delete_object(Bucket=self.bucket, Key=key)
-        except ClientError:
-            pass
-
-    def list_keys(self, prefix: str = "") -> list[str]:
-        paginator = self._client.get_paginator("list_objects_v2")
-        keys: list[str] = []
-        for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
-            for obj in page.get("Contents", []):
-                keys.append(obj["Key"])
-        return keys

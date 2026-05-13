@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { useChatStore, useProductsStore, useAuthStore, useCartStore, useFavoritesStore } from '../../stores';
 import ChatMessage from './ChatMessage';
+import ThinkingBlock from './ThinkingBlock';
 import clsx from 'clsx';
 
 export default function Chat() {
@@ -10,10 +11,13 @@ export default function Chat() {
   const {
     messages,
     isLoading,
-    sendMessage,
+    pendingThinking,
+    error,
+    streamMessage,
     clearHistory,
     lastActions,
     clearLastAction,
+    clearError,
     isOpen,
     toggleChat,
   } = useChatStore();
@@ -23,12 +27,13 @@ export default function Chat() {
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Scroll chat container to bottom (not the whole page)
+  // Scroll chat container to bottom (not the whole page). Also reacts to
+  // pendingThinking so new thinking steps stay in view.
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, pendingThinking]);
 
   // Handle chat actions (process all actions from multi-step plans)
   useEffect(() => {
@@ -70,7 +75,7 @@ export default function Chat() {
       open_product_id: undefined,
     };
 
-    sendMessage(input.trim(), uiState);
+    streamMessage(input.trim(), uiState);
     setInput('');
   };
 
@@ -123,22 +128,28 @@ export default function Chat() {
             </div>
           ) : (
             messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
+              <div key={message.id} className="space-y-1">
+                {message.role === 'assistant' && message.thinking && (
+                  <ThinkingBlock state={message.thinking} />
+                )}
+                <ChatMessage message={message} />
+              </div>
             ))
           )}
 
-          {isLoading && (
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-violet-500 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-white text-xs font-semibold">AI</span>
-              </div>
-              <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm border border-slate-100">
-                <div className="flex gap-1">
-                  <span className="loading-dot w-2 h-2 bg-slate-400 rounded-full"></span>
-                  <span className="loading-dot w-2 h-2 bg-slate-400 rounded-full"></span>
-                  <span className="loading-dot w-2 h-2 bg-slate-400 rounded-full"></span>
-                </div>
-              </div>
+          {pendingThinking && <ThinkingBlock state={pendingThinking} />}
+
+          {error && (
+            <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <span className="flex-1">{error}</span>
+              <button
+                type="button"
+                onClick={clearError}
+                className="text-red-500 hover:text-red-700 font-semibold leading-none"
+                aria-label="Закрыть"
+              >
+                ×
+              </button>
             </div>
           )}
 

@@ -48,7 +48,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/furniture_store
       SECRET_KEY: your-super-secret-key-change-in-production-123456
       OLLAMA_HOST: http://host.docker.internal:11434
-      OLLAMA_MODEL: furniture-3b-v4
+      OLLAMA_MODEL: furniture-3b-v5
       PYTHONPATH: /app
       ADMIN_EMAIL: admin@admin.com
       ADMIN_PASSWORD: admin12345

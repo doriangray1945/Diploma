@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Plus, Trash2, Pencil, Check, X } from 'lucide-react';
 import { adminApi, type AdminCategory } from '../../api/admin';
+import { getApiErrorMessage } from '../../lib/errors';
 
 export default function CategoriesPage() {
   const [items, setItems] = useState<AdminCategory[]>([]);
@@ -25,8 +26,8 @@ export default function CategoriesPage() {
       await adminApi.createCategory({ name: newName.trim() });
       setNewName('');
       load();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Не удалось создать');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Не удалось создать'));
     }
   };
 
@@ -42,8 +43,8 @@ export default function CategoriesPage() {
       await adminApi.updateCategory(id, { name: editName.trim() });
       setEditingId(null);
       load();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Не удалось сохранить');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Не удалось сохранить'));
     }
   };
 
@@ -57,8 +58,8 @@ export default function CategoriesPage() {
     try {
       await adminApi.deleteCategory(c.id);
       load();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Не удалось удалить');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Не удалось удалить'));
     }
   };
 

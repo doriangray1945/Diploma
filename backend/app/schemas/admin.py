@@ -84,13 +84,18 @@ class BulkStockUpdate(BaseModel):
 
 class BulkPriceUpdate(BaseModel):
     filter: AdminFilter
-    operation: Literal["discount", "markup", "set_price"]
-    value: int = Field(ge=1, le=10_000_000)
+    # "reset" — восстановить из old_price (отмена ранее применённой скидки)
+    operation: Literal["discount", "markup", "set_price", "reset"]
+    # 0 разрешён для discount/reset (сценарий «убрать скидку»),
+    # для markup/set_price ниже валидатор требует ≥1
+    value: int = Field(ge=0, le=10_000_000, default=0)
 
     @model_validator(mode="after")
-    def percent_range(self):
+    def validate_value(self):
         if self.operation in ("discount", "markup") and self.value > 100:
             raise ValueError(f"{self.operation} percent must be ≤ 100, got {self.value}")
+        if self.operation in ("markup", "set_price") and self.value < 1:
+            raise ValueError(f"{self.operation} requires value ≥ 1")
         return self
 
 

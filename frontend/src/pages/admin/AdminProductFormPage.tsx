@@ -8,6 +8,7 @@ import {
   type AdminProductUpdate,
   type AdminVariantUpdate,
 } from '../../api/admin';
+import { getApiErrorMessage } from '../../lib/errors';
 import { productsApi } from '../../api/products';
 import ProductVariantsTable, { type FormVariant } from '../../components/Admin/ProductVariantsTable';
 
@@ -166,8 +167,8 @@ export default function ProductFormPage() {
         await adminApi.createProduct(payload);
       }
       navigate('/admin/products');
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Не удалось сохранить');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Не удалось сохранить'));
     } finally {
       setSaving(false);
     }

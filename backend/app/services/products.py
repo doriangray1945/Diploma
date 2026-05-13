@@ -172,6 +172,28 @@ async def bulk_update_prices(
     matching_ids = [r.id for r in rows]
     old_total = sum((Decimal(str(r.price)) for r in rows), Decimal("0"))
 
+    # Reset: «убери скидки» — восстановить price из old_price.
+    # Триггерится либо явной операцией "reset", либо discount=0 (модель
+    # часто описывает «убрать скидку» именно как «discount 0%»).
+    is_reset = operation == "reset" or (operation == "discount" and value == 0)
+
+    if is_reset:
+        # price := old_price (где old_price задан), затем очистить old_price
+        await db.execute(
+            update(ProductVariant)
+            .where(
+                ProductVariant.id.in_(matching_ids),
+                ProductVariant.old_price.is_not(None),
+            )
+            .values(price=ProductVariant.old_price, old_price=None)
+        )
+        await db.commit()
+        new_rows = (await db.execute(
+            select(ProductVariant.price).where(ProductVariant.id.in_(matching_ids))
+        )).all()
+        new_total = sum((Decimal(str(r.price)) for r in new_rows), Decimal("0"))
+        return (len(matching_ids), new_total - old_total)
+
     if operation == "discount":
         factor = Decimal("1") - Decimal(value) / Decimal("100")
         new_price_expr = ProductVariant.price * float(factor)

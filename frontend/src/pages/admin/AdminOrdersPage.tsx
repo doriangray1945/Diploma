@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronRight, User } from 'lucide-react';
 import { adminApi, type AdminOrder, type OrderStatus } from '../../api/admin';
+import { getApiErrorMessage } from '../../lib/errors';
 
 const STATUSES: { value: OrderStatus | ''; label: string }[] = [
   { value: '', label: 'Все' },
@@ -62,8 +63,8 @@ export default function OrdersPage() {
     try {
       const updated = await adminApi.updateOrderStatus(id, next);
       setItems((prev) => prev.map((o) => (o.id === id ? updated : o)));
-    } catch (err: any) {
-      alert(err?.response?.data?.detail || 'Не удалось изменить статус');
+    } catch (err: unknown) {
+      alert(getApiErrorMessage(err, 'Не удалось изменить статус'));
     } finally {
       setSavingIds((s) => {
         const n = new Set(s);

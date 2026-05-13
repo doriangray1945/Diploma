@@ -63,10 +63,12 @@ export default function AdminDashboardPage() {
   const [categories, setCategories] = useState<CategoryBreakdown[]>([]);
   const [lowStock, setLowStock] = useState<LowStockProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setError(null);
     const days = period === '7d' ? 7 : 30;
     Promise.all([
       adminApi.overview(period),
@@ -82,6 +84,12 @@ export default function AdminDashboardPage() {
         setTop(t);
         setCategories(c);
         setLowStock(l);
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error('AdminDashboard load failed:', e);
+        setError(`Не удалось загрузить аналитику: ${msg}`);
       })
       .finally(() => !cancelled && setLoading(false));
     return () => {
@@ -107,6 +115,12 @@ export default function AdminDashboardPage() {
           ))}
         </div>
       </div>
+
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {loading && !overview ? (
         <div className="flex items-center justify-center py-20">

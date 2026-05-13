@@ -45,9 +45,12 @@ export default function CheckoutPage() {
       });
       await fetchCart();
       navigate(`/orders`, { state: { newOrderId: order.id } });
-    } catch (err: any) {
-      if (err?.response?.status === 409) {
-        const detail = err.response.data?.detail;
+    } catch (err: unknown) {
+      const axErr = err as {
+        response?: { status?: number; data?: { detail?: { items?: UnavailableItem[]; can_clamp?: boolean } } };
+      };
+      if (axErr?.response?.status === 409) {
+        const detail = axErr.response.data?.detail;
         await fetchCart();
         setStockModal({
           items: detail?.items ?? [],

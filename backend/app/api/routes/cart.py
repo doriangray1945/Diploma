@@ -53,9 +53,12 @@ def _serialize_cart_item(
 
 
 async def _load_cart_items(db: AsyncSession, user_id: int) -> list[CartItem]:
+    # ORDER BY id — без него Postgres после UPDATE на quantity может вернуть
+    # тронутую строку в конец, и в UI она «уезжает вниз».
     result = await db.execute(
         select(CartItem)
         .where(CartItem.user_id == user_id)
+        .order_by(CartItem.id)
         .options(
             selectinload(CartItem.variant)
             .selectinload(ProductVariant.product)

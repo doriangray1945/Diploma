@@ -152,11 +152,18 @@ export interface Favorite {
   created_at: string;
 }
 
+export interface ThinkingState {
+  isThinking: boolean;
+  startedAt: number | null;
+  durationMs: number | null;
+}
+
 export interface ChatMessage {
   id: number;
   role: 'user' | 'assistant';
   content: string;
   created_at: string;
+  thinking?: ThinkingState;
 }
 
 export interface ChatAction {

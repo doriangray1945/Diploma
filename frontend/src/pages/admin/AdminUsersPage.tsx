@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Search, Shield, ShieldOff, Crown } from 'lucide-react';
 import { adminApi, type AdminUser } from '../../api/admin';
 import { useAuthStore } from '../../stores';
+import { getApiErrorMessage } from '../../lib/errors';
 
 const fmtDate = (s: string) => new Date(s).toLocaleDateString('ru-RU');
 
@@ -30,8 +31,8 @@ export default function UsersPage() {
     try {
       const updated = await adminApi.setUserAdmin(u.id, !u.is_admin);
       setItems((prev) => prev.map((x) => (x.id === u.id ? updated : x)));
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Не удалось изменить роль');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Не удалось изменить роль'));
     } finally {
       setSavingIds((s) => {
         const n = new Set(s);

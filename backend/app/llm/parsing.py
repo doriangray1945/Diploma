@@ -14,8 +14,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-import pymorphy3
-
 
 @dataclass
 class ParseHints:
@@ -32,40 +30,6 @@ class ParseHints:
     # string filled by the LLM args-filler from the user's full text, then
     # matched semantically by pgvector cosine_distance against the product
     # embedding (which encodes name + description + materials + color).
-
-
-# ── Morphological gating layer (POS-only) ─────────────────────────────
-#
-# Tier 2 of the neuro-symbolic cascade: after the deterministic regex/dict
-# parser has extracted what it can (categories, prices, qty), the args
-# filler asks `is_descriptor_candidate` whether a residual token is an
-# open-class content word — i.e. plausibly a product descriptor worth
-# feeding to the LLM. Closed-class function vocabulary (verbs, prepositions,
-# pronouns, particles, conjunctions, interjections) is filtered out by
-# pymorphy3 morphology, no hardcoded list.
-#
-# Per-step decomposition (see Decomposer + PlanExecutor) ensures each
-# args-filler call only sees its own sub-action text — that's what keeps
-# the LLM agent fully agnostic to catalog content. The gate just decides
-# whether the LLM has anything to extract; it does not validate against
-# what the catalog contains.
-
-_MORPH = pymorphy3.MorphAnalyzer()
-_OPEN_CLASS_POS = frozenset({"NOUN", "ADJF", "ADJS", "PRTF", "PRTS"})
-
-
-def is_descriptor_candidate(token: str) -> bool:
-    """True if `token` is an open-class content word (NOUN, ADJF, ADJS,
-    PRTF, PRTS) per pymorphy3. Pure linguistic check — no coupling to
-    the catalog. Typos are handled by pymorphy3's suffix-based OOV
-    prediction («посаветуй» → still VERB → False).
-    """
-    if not token or len(token) < 2:
-        return False
-    parses = _MORPH.parse(token.lower())
-    if not parses:
-        return False
-    return parses[0].tag.POS in _OPEN_CLASS_POS
 
 
 # Russian diminutive/inflection prefixes per canonical category.
@@ -108,6 +72,10 @@ _PRICE_PATTERNS: list[tuple[str, str]] = [
 _QTY_PATTERNS = [
     r"\bпо\s+(\d+)\s*шт",
     r"\b(\d+)\s*(?:штук[аи]?|шт\.?)\s+каждого\b",
+    # Bare «по N» without «шт» — only when N (1-2 digits) sits at the end of
+    # the phrase or before punctuation, so prices like «по 30 000» and
+    # qualifiers like «по 2 цвета» don't get mis-extracted.
+    r"\bпо\s+(\d{1,2})(?=\s*$|\s*[,.;!?])",
 ]
 
 

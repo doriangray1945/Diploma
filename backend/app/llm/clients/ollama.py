@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any
+from typing import Any, AsyncIterator
 
 import httpx
 
@@ -80,3 +80,48 @@ class OllamaProvider:
             )
             response.raise_for_status()
             return response.json()
+
+    async def chat_stream(
+        self,
+        messages: list[Message],
+        temperature: float | None = None,
+        num_predict: int | None = None,
+    ) -> AsyncIterator[str]:
+        """Stream assistant tokens from Ollama as they're generated.
+
+        Ollama returns NDJSON when stream=true; each line is one chunk with
+        a partial content. We yield each non-empty `message.content` piece.
+        Caller is responsible for accumulating the full text.
+        """
+        ollama_messages = [{"role": m.role.value, "content": m.content} for m in messages]
+        options: dict[str, Any] = {
+            "temperature": temperature if temperature is not None else self.config.temperature,
+            "num_predict": num_predict if num_predict is not None else self.config.max_tokens,
+            "num_ctx": self.config.num_ctx,
+        }
+        payload = {
+            "model": self.config.chat_model,
+            "messages": ollama_messages,
+            "stream": True,
+            "think": False,
+            "keep_alive": self.config.keep_alive,
+            "options": options,
+        }
+        async with httpx.AsyncClient(timeout=self.config.request_timeout) as client:
+            async with client.stream(
+                "POST", f"{self.config.ollama_base_url}/api/chat", json=payload,
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.strip():
+                        continue
+                    try:
+                        chunk = json.loads(line)
+                    except json.JSONDecodeError:
+                        log.warning("[STREAM] non-JSON line: %r", line[:120])
+                        continue
+                    if chunk.get("done"):
+                        return
+                    piece = (chunk.get("message") or {}).get("content", "")
+                    if piece:
+                        yield piece

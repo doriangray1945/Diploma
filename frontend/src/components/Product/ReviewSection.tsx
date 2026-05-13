@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { reviewsApi } from '../../api';
 import { useAuthStore, useProductsStore } from '../../stores';
 import type { Review, ReviewEligibility } from '../../types';
+import { getApiErrorMessage } from '../../lib/errors';
 
 interface Props {
   productId: number;
@@ -104,8 +105,8 @@ function MyReviewForm({
         await reviewsApi.create(productId, { rating, text: text || undefined });
       }
       onDone();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Не удалось сохранить отзыв');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Не удалось сохранить отзыв'));
     } finally {
       setSaving(false);
     }

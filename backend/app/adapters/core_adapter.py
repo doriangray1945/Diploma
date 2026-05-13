@@ -26,8 +26,6 @@ def _build_config() -> CoreConfig:
     return CoreConfig(
         ollama_base_url=settings.OLLAMA_HOST,
         chat_model=settings.OLLAMA_MODEL,
-        language="русский",
-        business_prompt='Ассистент мебельного магазина "Nova Furnish".',
     )
 
 

@@ -63,28 +63,11 @@ class UserContext(BaseModel):
     history: list[Message] = Field(default_factory=list)
 
 
-# --- Schema Router pipeline (Structured Output) ---
-
-
-class Intent(str, Enum):
-    EXECUTE = "execute"
-    ASK_CLARIFICATION = "ask_clarification"
-    ANSWER_ONLY = "answer_only"
-    OUT_OF_SCOPE = "out_of_scope"
-
-
 class PlanStepV2(BaseModel):
     """A single executable step in a structured plan."""
     step_id: str  # e.g. "step_1"
     tool: str
     args: dict[str, Any] = Field(default_factory=dict)
-
-
-class StructuredPlan(BaseModel):
-    """LLM output produced under PLANNER_SCHEMA constraint."""
-    intent: Intent
-    plan: list[PlanStepV2] = Field(default_factory=list)
-    user_message: str = ""
 
 
 class SessionContext(BaseModel):

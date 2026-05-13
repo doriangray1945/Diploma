@@ -21,7 +21,10 @@ log = logging.getLogger(__name__)
 
 # Tools whose successful execution "consumes" product_ids (subsequent
 # «оставшиеся» / «remaining» quantifier excludes already-consumed ids).
-CONSUMING_TOOLS = {"add_to_cart", "add_to_favorites"}
+# add_to_favorites НЕ consumes — корзина и избранное независимы, типовой
+# запрос «и в корзину и в избранное» требует чтобы те же товары попали
+# в оба места.
+CONSUMING_TOOLS = {"add_to_cart"}
 
 # Tools whose args are subject to hint merging.
 PRODUCT_ID_TOOLS = {"add_to_cart", "add_to_favorites", "remove_from_favorites"}
@@ -66,6 +69,11 @@ class PlanExecutor:
         issues: list[ValidationIssue] = []
         consumed_ids: set[int] = set()
         categories = (filter_options or {}).get("categories", []) if filter_options else []
+        # When a step does apply_filters {color/material/price_level}, the
+        # user's visual selection is «green items» / «wooden items». The
+        # next add_to_cart/add_to_favorites without an explicit filter must
+        # inherit it — otherwise default_variant gets added (wrong colour).
+        last_visual_filter: dict[str, Any] = {}
 
         for step_idx, step in enumerate(plan):
             # Per-step text + per-step parser hints. When step_texts is
@@ -136,10 +144,33 @@ class PlanExecutor:
                 consumed=consumed_ids,
             )
 
+            # 2.5 Inherit visual filter (color/material/price_level) from a
+            # preceding apply_filters into add_to_cart / add_to_favorites —
+            # but ONLY when the tool arrived with a fully empty filter.
+            # Reason: «покажи зелёные шкафы и добавь в корзину» — model often
+            # leaves add_to_cart.args empty and we'd pick default_variant
+            # (often non-green). If the model put ANY key in filter, it
+            # expressed intent (e.g. «деревянные» in a green-filtered list) —
+            # we respect that and don't merge.
+            if step.tool in {"add_to_cart", "add_to_favorites"} and last_visual_filter:
+                existing = resolved_args.get("filter")
+                if not isinstance(existing, dict) or not existing:
+                    resolved_args["filter"] = dict(last_visual_filter)
+
             # 3. Strip args to fields the tool actually accepts. ArgsFiller
             #    already constrains via per-tool schema, but legacy tools/refs
             #    may smuggle in extras — defence in depth.
             resolved_args = _strip_to_tool_fields(self.tools, step.tool, resolved_args)
+
+            # Capture filter attrs from apply_filters for next steps to inherit.
+            if step.tool == "apply_filters":
+                captured = {
+                    k: resolved_args[k]
+                    for k in ("color", "material", "price_level")
+                    if resolved_args.get(k)
+                }
+                if captured:
+                    last_visual_filter = captured
 
             # 4. Per-tool semantic validation
             step_issues = _validate_args(
@@ -323,6 +354,13 @@ def _merge_hints(
             resolved = apply_quantifier(hints, list(visible), consumed)
             if resolved is not None:
                 out["product_ids"] = resolved
+        # Ambiguity fallback: «положи в корзину» without quantifier after a
+        # filter → default to all visible. Covers the cache-hit path where
+        # the stored skeleton arrives with args={} and the parser finds no
+        # «все/первые N» in the bare phrase. Explicit user intent (LLM or
+        # parser quantifier above) wins by virtue of running first.
+        if "product_ids" not in out and visible:
+            out["product_ids"] = list(visible)
         if tool == "add_to_cart" and "quantity" not in out and hints.quantity is not None:
             out["quantity"] = hints.quantity
         return out

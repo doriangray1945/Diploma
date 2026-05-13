@@ -3,15 +3,19 @@ emit `product_id` (the model knows products, not SKU IDs), and we resolve
 to default_variant for cart/favorites mutations. Filter queries scan
 variant fields for price/color/stock since those moved off Product.
 """
+import logging
 from typing import Any
 
 from sqlalchemy import or_, select, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.services.semantics import MATERIAL_GROUPS, resolve_material
+from app.services.semantics import MATERIAL_GROUPS, resolve_material, resolve_price_level
 from app.models import Product, ProductVariant, CartItem, Order, OrderItem, Favorite
 from app.services.products import apply_search_filter
+
+
+log = logging.getLogger(__name__)
 
 
 def _row_matches(product: Any, flt: dict[str, Any]) -> bool:
@@ -122,34 +126,78 @@ class PostgresDataProvider:
                 .options(selectinload(Product.variants))
             )
             product = result.scalar_one_or_none()
-        except Exception:
+        except Exception as e:
+            log.warning("get_product(%d) failed: %r", product_id, e)
             await self.db.rollback()
             return None
         if not product:
             return None
         return self._product_to_dict(product, detailed=True)
 
-    async def _resolve_variant_id(self, product_id: int) -> int | None:
-        """Tools pass product_id; we map to the product's default variant."""
-        result = await self.db.execute(
-            select(Product.default_variant_id).where(Product.id == product_id)
-        )
-        vid = result.scalar_one_or_none()
-        if vid:
-            return vid
-        # Fallback: pick first variant if default not set.
-        first = await self.db.execute(
-            select(ProductVariant.id)
-            .where(ProductVariant.product_id == product_id)
-            .order_by(ProductVariant.id)
-            .limit(1)
-        )
-        return first.scalar_one_or_none()
+    async def _resolve_variant_id(
+        self, product_id: int, variant_filter: dict[str, Any] | None = None
+    ) -> int | None:
+        """Tools pass product_id; we map to a concrete variant.
+
+        Without `variant_filter`: return product's default variant (or first).
+
+        With `variant_filter` (any of color/material/price_level): find the
+        first variant of this product matching the filter. ORDER BY
+        is_default DESC, id ASC, LIMIT 1. Returns None when nothing matches —
+        caller treats that as «product skipped, no SKU under that filter».
+        """
+        if not variant_filter:
+            result = await self.db.execute(
+                select(Product.default_variant_id).where(Product.id == product_id)
+            )
+            vid = result.scalar_one_or_none()
+            if vid:
+                return vid
+            first = await self.db.execute(
+                select(ProductVariant.id)
+                .where(ProductVariant.product_id == product_id)
+                .order_by(ProductVariant.id)
+                .limit(1)
+            )
+            return first.scalar_one_or_none()
+
+        q = select(ProductVariant.id).where(ProductVariant.product_id == product_id)
+
+        colors = variant_filter.get("color")
+        if colors:
+            color_list = colors if isinstance(colors, list) else [colors]
+            q = q.where(ProductVariant.color.in_(color_list))
+
+        price_level = variant_filter.get("price_level")
+        if price_level:
+            lvl_min, lvl_max = resolve_price_level(price_level)
+            if lvl_min is not None:
+                q = q.where(ProductVariant.price >= lvl_min)
+            if lvl_max is not None:
+                q = q.where(ProductVariant.price <= lvl_max)
+
+        materials = variant_filter.get("material")
+        if materials:
+            material_list = materials if isinstance(materials, list) else [materials]
+            substrings: list[str] = []
+            for m in material_list:
+                substrings.extend(resolve_material(m) or [m])
+            if substrings:
+                q = q.join(Product, Product.id == ProductVariant.product_id).where(
+                    or_(*[Product.materials.ilike(f"%{s}%") for s in substrings])
+                )
+
+        q = q.order_by(ProductVariant.is_default.desc(), ProductVariant.id.asc()).limit(1)
+        return (await self.db.execute(q)).scalar_one_or_none()
 
     # ── Cart ─────────────────────────────────────────────────────
 
     async def add_to_cart(
-        self, user_id: int, product_id: int, quantity: int = 1
+        self,
+        user_id: int,
+        product_id: int,
+        quantity: int = 1,
+        variant_filter: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         try:
             product_id = int(product_id)
@@ -166,8 +214,10 @@ class PostgresDataProvider:
         if not product:
             return {"error": "Товар не найден"}
 
-        variant_id = await self._resolve_variant_id(product_id)
+        variant_id = await self._resolve_variant_id(product_id, variant_filter)
         if not variant_id:
+            if variant_filter:
+                return {"error": "Нет вариантов товара под заданный фильтр"}
             return {"error": "Нет доступных вариантов товара"}
 
         variant = next((v for v in product.variants if v.id == variant_id), None)
@@ -516,7 +566,10 @@ class PostgresDataProvider:
         return out
 
     async def add_to_favorites(
-        self, user_id: int, product_id: int
+        self,
+        user_id: int,
+        product_id: int,
+        variant_filter: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         try:
             product_id = int(product_id)
@@ -530,8 +583,10 @@ class PostgresDataProvider:
         if not product:
             return {"error": "Товар не найден"}
 
-        variant_id = await self._resolve_variant_id(product_id)
+        variant_id = await self._resolve_variant_id(product_id, variant_filter)
         if not variant_id:
+            if variant_filter:
+                return {"error": "Нет вариантов товара под заданный фильтр"}
             return {"error": "Нет доступных вариантов товара"}
 
         existing = await self.db.execute(
