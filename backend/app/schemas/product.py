@@ -45,6 +45,11 @@ class ProductResponse(ProductBase):
     # frontend code that reads product.price etc. keeps working.
     variants: list[ProductVariantResponse] = []
     default_variant_id: int | None = None
+    # When a color filter is active, snapshot fields (price/images/color/stock)
+    # represent the variant that matched the filter — not the product default.
+    # `matched_variant_id` exposes that pick so the frontend can deep-link
+    # `/product/{id}?variant=<matched_variant_id>` from the catalog card.
+    matched_variant_id: int | None = None
     price: float = 0.0
     old_price: float | None = None
     images: list[str] = []

@@ -25,6 +25,12 @@ export default function ProductCard({ product, variantLabel }: ProductCardProps)
   const isInFavorites = favoritedVariantId !== null;
 
   const defaultVariantId = product.default_variant_id ?? product.variants?.[0]?.id ?? null;
+  // When the catalog request applied a color filter, backend snapshots the
+  // matching variant into product.images/price/color and exposes its id here.
+  // Deep-link to that variant so the product page opens it pre-selected.
+  const linkTo = product.matched_variant_id
+    ? `/product/${product.id}?variant=${product.matched_variant_id}`
+    : `/product/${product.id}`;
 
   const handleFavoriteClick = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -55,13 +61,17 @@ export default function ProductCard({ product, variantLabel }: ProductCardProps)
   // Placeholder image
   const imageUrl = product.images[0] || `https://placehold.co/400x300/e2e8f0/64748b?text=${encodeURIComponent(product.name)}`;
 
-  // Variant summary: distinct colours and how to pluralise (RU: 2-4 цвета, 5+ цветов).
+  // Variant summary: when a color filter picked a specific variant for this
+  // card, badge the actual colour (e.g. «Зелёный»). Otherwise — count of
+  // distinct colours across all variants (RU: 2-4 цвета, 5+ цветов).
   const colorCount = new Set(
     (product.variants ?? []).map((v) => v.color).filter((c): c is string => !!c),
   ).size;
-  const colorLabel = colorCount > 1
-    ? `${colorCount} ${colorCount >= 5 ? 'цветов' : 'цвета'}`
-    : null;
+  const colorLabel = product.matched_variant_id && product.color
+    ? product.color
+    : colorCount > 1
+      ? `${colorCount} ${colorCount >= 5 ? 'цветов' : 'цвета'}`
+      : null;
 
   // Whole product is sold out when no variant has stock.
   const allSoldOut =
@@ -71,7 +81,7 @@ export default function ProductCard({ product, variantLabel }: ProductCardProps)
 
   return (
     <Link
-      to={`/product/${product.id}`}
+      to={linkTo}
       className="group bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200 hover:shadow-lg hover:border-slate-300 transition-all"
     >
       {/* Image */}

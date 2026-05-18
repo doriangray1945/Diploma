@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft, Heart, ShoppingCart, Star, Truck, Shield, RotateCcw } from 'lucide-react';
 import { useProductsStore, useAuthStore, useCartStore, useFavoritesStore } from '../stores';
 import clsx from 'clsx';
@@ -11,6 +11,7 @@ import ReviewSection from '../components/Product/ReviewSection';
 export default function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuthStore();
   const { currentProduct: product, isLoading, error, fetchProduct } = useProductsStore();
   const { items: cartItems, addToCart } = useCartStore();
@@ -24,16 +25,23 @@ export default function ProductPage() {
     }
   }, [id, fetchProduct]);
 
-  // When product loads/changes, snap to its default variant.
+  // When product loads/changes, snap to a variant. Priority:
+  //   1) `?variant=<id>` in URL (deep-link from catalog card after color filter)
+  //   2) product's default variant
+  //   3) first variant
   useEffect(() => {
     if (!product) return;
-    const defaultId =
+    const fromQuery = Number(searchParams.get('variant'));
+    const fromQueryValid =
+      fromQuery > 0 && product.variants?.some((v) => v.id === fromQuery);
+    const initialId =
+      (fromQueryValid ? fromQuery : null) ??
       product.default_variant_id ??
       product.variants?.find((v) => v.is_default)?.id ??
       product.variants?.[0]?.id ??
       null;
-    setSelectedVariantId(defaultId);
-  }, [product]);
+    setSelectedVariantId(initialId);
+  }, [product, searchParams]);
 
   const variants = product?.variants ?? [];
 

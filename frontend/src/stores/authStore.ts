@@ -21,7 +21,12 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       token: null,
-      isLoading: false,
+      // Если в localStorage уже лежит токен — стартуем в isLoading=true, чтобы
+      // ProtectedRoute показал спиннер на первом рендере, пока App.tsx
+      // useEffect не успел вызвать fetchUser. Иначе при F5 на защищённой
+      // странице мы успеваем отрендерить Navigate to /login раньше, чем
+      // /auth/me вернёт юзера, — и пользователя «выкидывает» из аккаунта.
+      isLoading: typeof window !== 'undefined' && !!localStorage.getItem('token'),
       error: null,
 
       login: async (email: string, password: string) => {

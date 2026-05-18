@@ -55,6 +55,10 @@ export interface Product {
   // Variant data
   variants: ProductVariant[];
   default_variant_id?: number | null;
+  // When the catalog request had a color filter, snapshot fields above
+  // describe the variant that matched it (not the default). This carries
+  // its id so cards can deep-link `/product/{id}?variant=...`.
+  matched_variant_id?: number | null;
 }
 
 export interface ProductFilters {

@@ -20,8 +20,33 @@ from app.services.products import apply_search_filter
 router = APIRouter()
 
 
-def _serialize_product(product: Product, favorite_variant_ids: set[int]) -> ProductResponse:
-    """Build ProductResponse with default-variant snapshot fields populated."""
+def _pick_matched_variant(
+    product: Product, colors_filter: list[str] | None
+) -> ProductVariant | None:
+    """First variant whose color matches the filter. None if no filter or no hit.
+
+    EXISTS subquery in /products already guarantees the product has SOME matching
+    variant when a color filter is set — this just picks which one to display.
+    """
+    if not colors_filter:
+        return None
+    cf_lower = [c.lower() for c in colors_filter if c]
+    if not cf_lower:
+        return None
+    for v in product.variants:
+        if v.color and any(c in v.color.lower() for c in cf_lower):
+            return v
+    return None
+
+
+def _serialize_product(
+    product: Product,
+    favorite_variant_ids: set[int],
+    selected_variant: ProductVariant | None = None,
+) -> ProductResponse:
+    """Build ProductResponse. Snapshot fields come from `selected_variant` when
+    provided (e.g. when a color filter picked a specific variant for display),
+    otherwise from the product's default variant."""
     variants_sorted = sorted(
         product.variants, key=lambda v: (not v.is_default, v.id)
     )
@@ -29,6 +54,7 @@ def _serialize_product(product: Product, favorite_variant_ids: set[int]) -> Prod
         (v for v in variants_sorted if v.is_default),
         variants_sorted[0] if variants_sorted else None,
     )
+    snapshot = selected_variant or default
     is_favorite = any(v.id in favorite_variant_ids for v in variants_sorted)
     return ProductResponse(
         id=product.id,
@@ -45,14 +71,15 @@ def _serialize_product(product: Product, favorite_variant_ids: set[int]) -> Prod
         created_at=product.created_at,
         is_favorite=is_favorite,
         default_variant_id=product.default_variant_id,
+        matched_variant_id=selected_variant.id if selected_variant else None,
         variants=[ProductVariantResponse.model_validate(v) for v in variants_sorted],
-        # Default-variant snapshot (legacy compat for frontend reading product.price etc).
-        price=float(default.price) if default else 0.0,
-        old_price=float(default.old_price) if default and default.old_price else None,
-        images=default.images if default else [],
-        color=default.color if default else None,
-        in_stock=default.in_stock if default else False,
-        stock_quantity=default.stock_quantity if default else 0,
+        # Snapshot fields (legacy compat for frontend reading product.price etc).
+        price=float(snapshot.price) if snapshot else 0.0,
+        old_price=float(snapshot.old_price) if snapshot and snapshot.old_price else None,
+        images=snapshot.images if snapshot else [],
+        color=snapshot.color if snapshot else None,
+        in_stock=snapshot.in_stock if snapshot else False,
+        stock_quantity=snapshot.stock_quantity if snapshot else 0,
     )
 
 
@@ -149,7 +176,12 @@ async def get_products(
         )
         favorite_variant_ids = set(fav_result.scalars().all())
 
-    items = [_serialize_product(p, favorite_variant_ids) for p in products]
+    items = [
+        _serialize_product(
+            p, favorite_variant_ids, selected_variant=_pick_matched_variant(p, color)
+        )
+        for p in products
+    ]
 
     pages = (total + per_page - 1) // per_page
 
