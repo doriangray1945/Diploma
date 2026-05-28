@@ -11,6 +11,8 @@ from app.llm.tools.base import BaseTool
 # model sees identical schema text at runtime as it did during training.
 _FIELD_DESCRIPTIONS = {
     "category":    "Одна категория товара",
+    "subcategory": "Подкатегория внутри категории (журнальный/письменный для столов, барный/обеденный для стульев и т.п.)",
+    "room":        "Тип помещения, для которого нужна мебель",
     "material":    "Материалы (массив, можно несколько)",
     "color":       "Цвета (массив, можно несколько)",
     "price_level": "Семантический ценовой сегмент",
@@ -22,6 +24,7 @@ _FIELD_DESCRIPTIONS = {
 
 # API-level enum (price segmentation contract — not catalog data)
 _PRICE_LEVELS = ["budget", "mid", "premium"]
+_ROOMS = ["гостиная", "спальня", "детская", "офис", "кухня", "прихожая"]
 
 
 class ApplyFiltersTool(BaseTool):
@@ -42,6 +45,8 @@ class ApplyFiltersTool(BaseTool):
         "type": "object",
         "properties": {
             "category":    {"type": "string", "description": _FIELD_DESCRIPTIONS["category"]},
+            "subcategory": {"type": "string", "description": _FIELD_DESCRIPTIONS["subcategory"]},
+            "room":        {"type": "string", "enum": _ROOMS, "description": _FIELD_DESCRIPTIONS["room"]},
             "material":    {"type": "array", "items": {"type": "string"}, "description": _FIELD_DESCRIPTIONS["material"]},
             "color":       {"type": "array", "items": {"type": "string"}, "description": _FIELD_DESCRIPTIONS["color"]},
             "price_level": {"type": "string", "enum": _PRICE_LEVELS, "description": _FIELD_DESCRIPTIONS["price_level"]},
@@ -67,6 +72,8 @@ class ApplyFiltersTool(BaseTool):
             "type": "object",
             "properties": {
                 "category":    cat,
+                "subcategory": {"type": "string", "description": _FIELD_DESCRIPTIONS["subcategory"]},
+                "room":        {"type": "string", "enum": _ROOMS, "description": _FIELD_DESCRIPTIONS["room"]},
                 "material":    {"type": "array", "items": mat_items, "description": _FIELD_DESCRIPTIONS["material"]},
                 "color":       {"type": "array", "items": col_items, "description": _FIELD_DESCRIPTIONS["color"]},
                 "price_level": {"type": "string", "enum": _PRICE_LEVELS, "description": _FIELD_DESCRIPTIONS["price_level"]},
@@ -78,9 +85,34 @@ class ApplyFiltersTool(BaseTool):
         }
 
     async def execute(self, user_id: int = 0, **kwargs: Any) -> dict[str, Any]:
+        from sqlalchemy import select, func
+        from app.models import Product
         from app.services.semantics import resolve_price_level
 
         filters = {k: v for k, v in kwargs.items() if v is not None and k != "user_id"}
+
+        # Если LLM прислала только subcategory без category — допишем category
+        # по БД, чтобы фронт показал блок «Подкатегория» (он виден лишь
+        # при выбранной category в CatalogFilters.tsx).
+        if filters.get("subcategory") and not filters.get("category"):
+            cat = (await self.provider.db.execute(
+                select(Product.category)
+                .where(func.lower(Product.subcategory) == filters["subcategory"].lower())
+                .limit(1)
+            )).scalar_one_or_none()
+            if cat:
+                filters["category"] = cat
+
+        # Нормализуем регистр для UI: «журнальный» → «Журнальный» (canonical),
+        # иначе UI-pill сравнивается строкой и не подсвечивается.
+        if filters.get("subcategory"):
+            real = (await self.provider.db.execute(
+                select(Product.subcategory)
+                .where(func.lower(Product.subcategory) == filters["subcategory"].lower())
+                .limit(1)
+            )).scalar_one_or_none()
+            if real:
+                filters["subcategory"] = real
 
         if filters.get("price_level"):
             lvl_min, lvl_max = resolve_price_level(filters["price_level"])
@@ -101,6 +133,8 @@ class ApplyFiltersTool(BaseTool):
         products = await self.provider.search_products(
             query=filters.get("search"),
             category=filters.get("category"),
+            subcategory=filters.get("subcategory"),
+            room=filters.get("room"),
             min_price=filters.get("min_price"),
             max_price=filters.get("max_price"),
             in_stock=filters.get("in_stock", True),

@@ -40,7 +40,8 @@ from openai import OpenAI
 
 from tool_schemas import (
     ADMIN_TOOL_NAMES, ALL_TOOL_NAMES, CATEGORIES, COLORS, MATERIALS,
-    PRICE_LEVELS, QUANTIFIERS, USER_TOOL_NAMES,
+    PRICE_LEVELS, QUANTIFIERS, ROOMS, SUBCATEGORIES, SUBCATEGORIES_FLAT,
+    USER_TOOL_NAMES,
 )
 from validator import validate_example
 
@@ -127,8 +128,9 @@ _REQUIRED_FIELDS: dict[str, set[str]] = {
 
 # Canonical top-level property names per tool
 _TOOL_PROPS: dict[str, set[str]] = {
-    "apply_filters": {"category", "material", "color", "price_level",
-                      "min_price", "max_price", "search", "in_stock"},
+    "apply_filters": {"category", "subcategory", "room", "material", "color",
+                      "price_level", "min_price", "max_price", "search",
+                      "in_stock"},
     "add_to_favorites": {"quantifier", "n", "product_ids"},
     "add_to_cart": {"quantifier", "n", "product_ids", "quantity"},
     "remove_from_favorites": {"filter"},
@@ -143,7 +145,7 @@ _TOOL_PROPS: dict[str, set[str]] = {
 
 # Property names inside admin filter sub-object (apply_filters-like + name/ids)
 _ADMIN_FILTER_PROPS: set[str] = {
-    "category", "material", "color", "price_level",
+    "category", "subcategory", "room", "material", "color", "price_level",
     "min_price", "max_price", "search", "in_stock",
     "product_name", "product_ids",
 }
@@ -160,16 +162,47 @@ _CAT_TO_EN = {
     "Стулья": "Chairs", "Шкафы": "Cabinets", "Кровати": "Beds",
 }
 _COL_TO_EN = {
-    "Бежевый": "Beige", "Белый": "White", "Венге": "Wenge", "Жёлтый": "Yellow",
-    "Зелёный": "Green", "Изумрудный": "Emerald", "Коричневый": "Brown",
-    "Красный": "Red", "Орех": "Walnut", "Прозрачный": "Transparent",
+    "Бежевый": "Beige", "Белый": "White", "Жёлтый": "Yellow",
+    "Зелёный": "Green", "Коричневый": "Brown", "Красный": "Red",
     "Розовый": "Pink", "Серый": "Gray", "Синий": "Blue", "Чёрный": "Black",
 }
 _MAT_TO_EN = {
     "дерево": "wood", "металл": "metal", "стекло": "glass",
     "ткань": "fabric", "кожа": "leather", "пластик": "plastic",
 }
-_VARIANT_B_VALUES = {**_CAT_TO_EN, **_COL_TO_EN, **_MAT_TO_EN}
+# Подкатегории — варианту B нужна полная EN-карта, иначе variant.value_map
+# не выровняет значения в plan'ах. Берём детерминированный transliteration-
+# подобный перевод (нужен только для variant B аугментации).
+_SUB_TO_EN = {
+    "Модульный":      "Modular",
+    "Прямой":         "Straight",
+    "Угловой":        "Corner",
+    "Классическое":   "Classic",
+    "Кресло-кровать": "Recliner",
+    "Поворотное":     "Swivel",
+    "Двуспальная":    "DoubleBed",
+    "Детская":        "KidsBed",
+    "Модульная":      "ModularBed",
+    "Журнальный":     "CoffeeTable",
+    "Кухонный":       "KitchenTable",
+    "Обеденный":      "Dining",
+    "Письменный":     "Writing",
+    "Офисный":        "Office",
+    "Детский":        "Kids",
+    "Навесной":       "Wall",
+    "Распашной":      "Swing",
+}
+# Помещения — для variant B
+_ROOM_TO_EN = {
+    "гостиная": "living_room",
+    "спальня":  "bedroom",
+    "детская":  "kids_room",
+    "офис":     "office",
+    "кухня":    "kitchen",
+    "прихожая": "hallway",
+}
+_VARIANT_B_VALUES = {**_CAT_TO_EN, **_COL_TO_EN, **_MAT_TO_EN,
+                     **_SUB_TO_EN, **_ROOM_TO_EN}
 
 
 VARIANTS: list[SchemaVariant] = [
@@ -190,7 +223,9 @@ VARIANTS: list[SchemaVariant] = [
             "update_stock": "modify_inventory",
             "update_prices": "modify_pricing",
             "get_sales_analytics": "fetch_sales_report",
-            "category": "type", "material": "materials", "color": "colors",
+            "category": "type", "subcategory": "subtype",
+            "room": "intended_room",
+            "material": "materials", "color": "colors",
             "price_level": "tier", "min_price": "price_from", "max_price": "price_to",
             "search": "query", "in_stock": "available",
             "quantifier": "scope", "n": "count", "product_ids": "items",
@@ -218,7 +253,10 @@ VARIANTS: list[SchemaVariant] = [
             "update_stock": "bulk_update_inventory_stock",
             "update_prices": "bulk_update_product_pricing",
             "get_sales_analytics": "compute_sales_performance_report",
-            "category": "product_category", "material": "product_materials_list",
+            "category": "product_category",
+            "subcategory": "product_subcategory_kind",
+            "room": "intended_room_type",
+            "material": "product_materials_list",
             "color": "product_colors_list", "price_level": "price_segment",
             "min_price": "minimum_price_rub", "max_price": "maximum_price_rub",
             "search": "free_text_query", "in_stock": "is_in_stock_only",
@@ -232,9 +270,11 @@ VARIANTS: list[SchemaVariant] = [
             "limit": "top_n_limit", "product_name": "product_full_name",
         },
         enum_extras={
-            "category": ["Тумбы", "Стеллажи", "Комоды"],     # new categories
-            "color":    ["Бирюзовый", "Бордовый", "Хаки"],    # new colors
-            "material": ["ротанг", "бамбук", "акрил"],        # new materials
+            "category":    ["Тумбы", "Стеллажи", "Комоды"],   # new categories
+            "color":       ["Бирюзовый", "Бордовый", "Хаки"],  # new colors
+            "material":    ["ротанг", "бамбук", "акрил"],      # new materials
+            "subcategory": ["Раскладной", "Угловой-L"],         # new subcat shapes
+            "room":        ["балкон", "терраса"],               # new rooms
         },
     ),
 ]
@@ -342,6 +382,8 @@ TOOL_DESCRIPTIONS: dict[str, str] = {
 
 FIELD_DESCRIPTIONS: dict[str, str] = {
     "category": "Одна категория товара",
+    "subcategory": "Подкатегория внутри категории (журнальный/письменный для столов, угловой/прямой для диванов, обеденный/офисный для стульев и т.п.)",
+    "room": "Тип помещения, для которого нужна мебель",
     "material": "Материалы (массив, можно несколько)",
     "color": "Цвета (массив, можно несколько)",
     "price_level": "Семантический ценовой сегмент",
@@ -375,7 +417,7 @@ FIELD_DESCRIPTIONS: dict[str, str] = {
 FAKE_FIELDS_POOL: list[dict] = [
     {"name": "brand",             "schema": {"type": "string", "description": "Бренд производителя"}},
     {"name": "style",             "schema": {"type": "string", "enum": ["лофт", "классика", "минимализм", "сканди", "прованс"], "description": "Стиль интерьера"}},
-    {"name": "room_type",         "schema": {"type": "string", "enum": ["гостиная", "спальня", "детская", "офис", "кухня"], "description": "Для какой комнаты"}},
+    # NOTE: room_type удалён из FAKE — теперь `room` реальное поле в apply_filters.
     {"name": "discount_only",     "schema": {"type": "boolean", "description": "Только товары со скидкой"}},
     {"name": "min_year",          "schema": {"type": "integer", "description": "Минимальный год выпуска"}},
     {"name": "warranty_months",   "schema": {"type": "integer", "description": "Гарантия в месяцах"}},
@@ -441,6 +483,8 @@ def _admin_filter_full_schema(variant: SchemaVariant, ctx: RowContext = EMPTY_CT
     en = lambda fname, cvalues: _enum_for(fname, cvalues, variant, ctx)
     props: dict = {
         rn("category"):     {"type": "string", "enum": en("category", CATEGORIES), "description": FIELD_DESCRIPTIONS["category"]},
+        rn("subcategory"):  {"type": "string", "enum": en("subcategory", SUBCATEGORIES_FLAT), "description": FIELD_DESCRIPTIONS["subcategory"]},
+        rn("room"):         {"type": "string", "enum": en("room", ROOMS), "description": FIELD_DESCRIPTIONS["room"]},
         rn("material"):     {"type": "array", "items": {"type": "string", "enum": en("material", MATERIALS)}, "description": FIELD_DESCRIPTIONS["material"]},
         rn("color"):        {"type": "array", "items": {"type": "string", "enum": en("color", COLORS)}, "description": FIELD_DESCRIPTIONS["color"]},
         rn("price_level"):  {"type": "string", "enum": list(PRICE_LEVELS), "description": FIELD_DESCRIPTIONS["price_level"]},
@@ -480,6 +524,8 @@ def _tool_full_schema(canonical_tool: str, variant: SchemaVariant,
     if canonical_tool == "apply_filters":
         props = {
             rn("category"):    {"type": "string", "enum": en("category", CATEGORIES), "description": FIELD_DESCRIPTIONS["category"]},
+            rn("subcategory"): {"type": "string", "enum": en("subcategory", SUBCATEGORIES_FLAT), "description": FIELD_DESCRIPTIONS["subcategory"]},
+            rn("room"):        {"type": "string", "enum": en("room", ROOMS), "description": FIELD_DESCRIPTIONS["room"]},
             rn("material"):    {"type": "array", "items": {"type": "string", "enum": en("material", MATERIALS)}, "description": FIELD_DESCRIPTIONS["material"]},
             rn("color"):       {"type": "array", "items": {"type": "string", "enum": en("color", COLORS)}, "description": FIELD_DESCRIPTIONS["color"]},
             rn("price_level"): {"type": "string", "enum": list(PRICE_LEVELS), "description": FIELD_DESCRIPTIONS["price_level"]},
@@ -617,8 +663,14 @@ class AbstractIntent:
 
 
 def load_seeds() -> list[dict]:
+    """Load seed examples. Skips comment-only entries (no `user` field) —
+    seeds.json mixes data with structural comments like {"_comment": "...", "plan": []}.
+    """
     with (HERE / "seeds.json").open() as f:
-        return [e for e in json.load(f)["examples"] if "plan" in e]
+        return [
+            e for e in json.load(f)["examples"]
+            if "plan" in e and isinstance(e.get("user"), str) and e["user"].strip()
+        ]
 
 
 _QTY_DISAMB_HINTS = ("штук", "штуки", "штука", "по парочке", "по одной",
@@ -849,6 +901,110 @@ EVAL_INTENTS: list[AbstractIntent] = [
                        "period": "custom", "from_date": "2026-01-01", "to_date": "2026-02-01",
                        "group_by": "day", "metric": "revenue"}}],
                    n_variants=1, schema_lock="A"),
+
+    # ───────────────────────────────────────────────────────────────────
+    # v6 NEW: room queries (held-out — formulations differ from train seeds)
+    # ───────────────────────────────────────────────────────────────────
+    AbstractIntent("user_simple", "user", "что подойдёт для гостиной",
+                   [{"tool": "apply_filters", "args": {"room": "гостиная"}}],
+                   n_variants=1, schema_lock="A"),
+    AbstractIntent("user_simple", "user", "подбор мебели в спальню",
+                   [{"tool": "apply_filters", "args": {"room": "спальня"}}],
+                   n_variants=1, schema_lock="A"),
+    AbstractIntent("user_simple", "user", "что у вас для кухни",
+                   [{"tool": "apply_filters", "args": {"room": "кухня"}}],
+                   n_variants=1, schema_lock="A"),
+    AbstractIntent("user_simple", "user", "что для прихожей есть",
+                   [{"tool": "apply_filters", "args": {"room": "прихожая"}}],
+                   n_variants=1, schema_lock="A"),
+
+    # v6 NEW: category + room
+    AbstractIntent("user_simple", "user", "кресло для рабочего места",
+                   [{"tool": "apply_filters", "args": {"category": "Кресла", "room": "офис"}}],
+                   n_variants=1, schema_lock="A"),
+    AbstractIntent("user_simple", "user", "диван для гостиной комнаты",
+                   [{"tool": "apply_filters", "args": {"category": "Диваны", "room": "гостиная"}}],
+                   n_variants=1, schema_lock="A"),
+    AbstractIntent("user_simple", "user", "шкаф в коридор",
+                   [{"tool": "apply_filters", "args": {"category": "Шкафы", "room": "прихожая"}}],
+                   n_variants=1, schema_lock="A"),
+
+    # v6 NEW: subcategory (held-out phrasings)
+    AbstractIntent("user_simple", "user", "столик журнальный",
+                   [{"tool": "apply_filters", "args": {"category": "Столы", "subcategory": "Журнальный"}}],
+                   n_variants=1, schema_lock="A"),
+    AbstractIntent("user_simple", "user", "стол письменный для работы",
+                   [{"tool": "apply_filters", "args": {"category": "Столы", "subcategory": "Письменный"}}],
+                   n_variants=1, schema_lock="A"),
+    AbstractIntent("user_simple", "user", "хочу подобрать угловую модель дивана",
+                   [{"tool": "apply_filters", "args": {"category": "Диваны", "subcategory": "Угловой"}}],
+                   n_variants=1, schema_lock="A"),
+    AbstractIntent("user_simple", "user", "кровать двуспальная",
+                   [{"tool": "apply_filters", "args": {"category": "Кровати", "subcategory": "Двуспальная"}}],
+                   n_variants=1, schema_lock="A"),
+    AbstractIntent("user_simple", "user", "шкаф распашной",
+                   [{"tool": "apply_filters", "args": {"category": "Шкафы", "subcategory": "Распашной"}}],
+                   n_variants=1, schema_lock="A"),
+
+    # v6 NEW: subcategory + color
+    AbstractIntent("user_simple", "user", "журнальный стол серого цвета",
+                   [{"tool": "apply_filters", "args": {
+                       "category": "Столы", "subcategory": "Журнальный", "color": ["Серый"]}}],
+                   n_variants=1, schema_lock="A"),
+    AbstractIntent("user_simple", "user", "обеденный стол в белом",
+                   [{"tool": "apply_filters", "args": {
+                       "category": "Столы", "subcategory": "Обеденный", "color": ["Белый"]}}],
+                   n_variants=1, schema_lock="A"),
+
+    # v6 NEW: subcategory + room
+    AbstractIntent("user_simple", "user", "обеденные стулья для кухни",
+                   [{"tool": "apply_filters", "args": {
+                       "category": "Стулья", "subcategory": "Обеденный", "room": "кухня"}}],
+                   n_variants=1, schema_lock="A"),
+    AbstractIntent("user_simple", "user", "письменный стол в кабинет",
+                   [{"tool": "apply_filters", "args": {
+                       "category": "Столы", "subcategory": "Письменный", "room": "офис"}}],
+                   n_variants=1, schema_lock="A"),
+
+    # v6 NEW: ambiguity (детская как room vs subcategory)
+    AbstractIntent("user_simple", "user", "что-то в детскую",
+                   [{"tool": "apply_filters", "args": {"room": "детская"}}],
+                   n_variants=1, schema_lock="A"),
+    AbstractIntent("user_simple", "user", "детская кроватка",
+                   [{"tool": "apply_filters", "args": {"category": "Кровати", "subcategory": "Детская"}}],
+                   n_variants=1, schema_lock="A"),
+    AbstractIntent("user_simple", "user", "шкаф для детской комнаты",
+                   [{"tool": "apply_filters", "args": {"category": "Шкафы", "room": "детская"}}],
+                   n_variants=1, schema_lock="A"),
+
+    # v6 NEW: ambiguity (офис — room vs subcategory Офисный)
+    AbstractIntent("user_simple", "user", "крутящийся стул офисного типа",
+                   [{"tool": "apply_filters", "args": {"category": "Стулья", "subcategory": "Офисный"}}],
+                   n_variants=1, schema_lock="A"),
+    AbstractIntent("user_simple", "user", "что есть из стульев в офис",
+                   [{"tool": "apply_filters", "args": {"category": "Стулья", "room": "офис"}}],
+                   n_variants=1, schema_lock="A"),
+
+    # v6 NEW: обеденный стол vs обеденный стул
+    AbstractIntent("user_simple", "user", "столы обеденные",
+                   [{"tool": "apply_filters", "args": {"category": "Столы", "subcategory": "Обеденный"}}],
+                   n_variants=1, schema_lock="A"),
+    AbstractIntent("user_simple", "user", "стулья обеденные деревянные",
+                   [{"tool": "apply_filters", "args": {
+                       "category": "Стулья", "subcategory": "Обеденный", "material": ["дерево"]}}],
+                   n_variants=1, schema_lock="A"),
+
+    # v6 NEW: новая палитра (10 базовых цветов — проверка что модель НЕ генерит старые)
+    AbstractIntent("user_simple", "user", "розовый диван",
+                   [{"tool": "apply_filters", "args": {"category": "Диваны", "color": ["Розовый"]}}],
+                   n_variants=1, schema_lock="A"),
+    AbstractIntent("user_simple", "user", "жёлтое кресло",
+                   [{"tool": "apply_filters", "args": {"category": "Кресла", "color": ["Жёлтый"]}}],
+                   n_variants=1, schema_lock="A"),
+    AbstractIntent("user_simple", "user", "коричневый стол из дерева",
+                   [{"tool": "apply_filters", "args": {
+                       "category": "Столы", "color": ["Коричневый"], "material": ["дерево"]}}],
+                   n_variants=1, schema_lock="A"),
 ]
 
 
@@ -912,11 +1068,14 @@ def gpt_phrasings(client: OpenAI, intent: AbstractIntent, n: int,
 _NUMBER_RE = re.compile(r"\d+")
 _KEYWORD_TOKENS = {
     "красн", "син", "зелён", "зелен", "жёлт", "желт", "чёрн", "черн",
-    "беж", "бел", "венге", "коричн", "сер", "розов", "оранж", "изумруд", "орех",
+    "беж", "бел", "коричн", "сер", "розов", "оранж",
     "диван", "крес", "стол", "стул", "шкаф", "кроват",
     "дерев", "металл", "стекл", "ткан", "кож", "пластик",
     "дуб", "сосн", "велюр", "лофт", "уют", "элегант", "винтаж",
     "детск", "офис", "минимал", "скандинав", "гостин", "кух", "дач",
+    "спальн", "прихож",
+    "журнальн", "обеден", "письменн", "поворотн", "двуспальн", "прямой",
+    "угловой", "модульн", "классическ", "навесн", "распашн", "кухонн",
     "набор", "комплект",
     "недорог", "дешёв", "дешов", "бюджет", "премиум", "дорог", "люкс",
     "первы", "последн", "разных", "штук", "шт", "по ", "пар",

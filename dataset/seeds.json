@@ -154,8 +154,7 @@
             "color": [
               "Красный",
               "Жёлтый",
-              "Зелёный",
-              "Изумрудный"
+              "Зелёный"
             ]
           }
         }
@@ -851,7 +850,7 @@
           "args": {
             "color": [
               "Чёрный",
-              "Венге"
+              "Коричневый"
             ],
             "search": "готика"
           }
@@ -1034,7 +1033,6 @@
           "tool": "apply_filters",
           "args": {
             "color": [
-              "Венге",
               "Коричневый"
             ],
             "material": [
@@ -1983,7 +1981,6 @@
           "args": {
             "color": [
               "Коричневый",
-              "Венге",
               "Чёрный"
             ],
             "material": [
@@ -2059,7 +2056,6 @@
               "Красный",
               "Жёлтый",
               "Зелёный",
-              "Изумрудный",
               "Розовый"
             ],
             "search": "креативный"
@@ -2806,14 +2802,14 @@
     },
     {
       "role": "user",
-      "user": "найди венге шкафы, в корзину все по 1 штуке",
+      "user": "найди коричневый шкафы, в корзину все по 1 штуке",
       "plan": [
         {
           "tool": "apply_filters",
           "args": {
             "category": "Шкафы",
             "color": [
-              "Венге"
+              "Коричневый"
             ]
           }
         },
@@ -3858,13 +3854,12 @@
     },
     {
       "role": "user",
-      "user": "что то типа изумрудного",
+      "user": "что то типа зелёного",
       "plan": [
         {
           "tool": "apply_filters",
           "args": {
             "color": [
-              "Изумрудный",
               "Зелёный"
             ]
           }
@@ -3886,14 +3881,14 @@
     },
     {
       "role": "user",
-      "user": "чо есть из ореховых шкафчиков",
+      "user": "чо есть из коричневыйовых шкафчиков",
       "plan": [
         {
           "tool": "apply_filters",
           "args": {
             "category": "Шкафы",
             "color": [
-              "Орех"
+              "Коричневый"
             ]
           }
         }
@@ -3927,7 +3922,7 @@
     },
     {
       "role": "user",
-      "user": "убери из избранного всё чёрное и венге",
+      "user": "убери из избранного всё чёрное и коричневый",
       "plan": [
         {
           "tool": "remove_from_favorites",
@@ -3935,7 +3930,7 @@
             "filter": {
               "color": [
                 "Чёрный",
-                "Венге"
+                "Коричневый"
               ]
             }
           }
@@ -4545,7 +4540,7 @@
             "category": "Шкафы",
             "color": [
               "Чёрный",
-              "Венге"
+              "Коричневый"
             ],
             "material": [
               "дерево"
@@ -4564,7 +4559,7 @@
           "args": {
             "color": [
               "Чёрный",
-              "Изумрудный"
+              "Зелёный"
             ],
             "material": [
               "дерево",
@@ -4584,7 +4579,6 @@
           "args": {
             "category": "Столы",
             "color": [
-              "Венге",
               "Коричневый"
             ],
             "material": [
@@ -4643,8 +4637,7 @@
           "tool": "apply_filters",
           "args": {
             "color": [
-              "Коричневый",
-              "Венге"
+              "Коричневый"
             ],
             "material": [
               "дерево"
@@ -4694,7 +4687,8 @@
       ]
     },
     {
-      "_comment": "Bug-1 patches: «N <category> в корзину» без явного admin-verb. Учим модель не путать с update_stock."
+      "_comment": "Bug-1 patches: «N <category> в корзину» без явного admin-verb. Учим модель не путать с update_stock.",
+      "plan": []
     },
     {
       "role": "user",
@@ -4894,7 +4888,8 @@
       ]
     },
     {
-      "_comment": "Bug-1 quantity-disambiguation: «N <cat> ... по K штук» → first_n=N + quantity=K"
+      "_comment": "Bug-1 quantity-disambiguation: «N <cat> ... по K штук» → first_n=N + quantity=K",
+      "plan": []
     },
     {
       "role": "user",
@@ -4937,7 +4932,8 @@
       ]
     },
     {
-      "_comment": "Bug-1 negative anchors: explicit admin verbs (пополни/уменьши/обнови) MUST stay update_stock — anti-forgetting."
+      "_comment": "Bug-1 negative anchors: explicit admin verbs (пополни/уменьши/обнови) MUST stay update_stock — anti-forgetting.",
+      "plan": []
     },
     {
       "role": "admin",
@@ -4988,7 +4984,8 @@
       ]
     },
     {
-      "_comment": "Bug-2 patches: «не дороже X» / «не больше X» = max_price filter (NOT admin discount). Critical — model confused these with update_prices."
+      "_comment": "Bug-2 patches: «не дороже X» / «не больше X» = max_price filter (NOT admin discount). Critical — model confused these with update_prices.",
+      "plan": []
     },
     {
       "role": "user",
@@ -5095,7 +5092,8 @@
       ]
     },
     {
-      "_comment": "Bug-3 patches: «бесплатно» / «за 0» = max_price=0 user filter (NOT admin set_price=0). CRITICAL — model was setting prices to 0!"
+      "_comment": "Bug-3 patches: «бесплатно» / «за 0» = max_price=0 user filter (NOT admin set_price=0). CRITICAL — model was setting prices to 0!",
+      "plan": []
     },
     {
       "role": "user",
@@ -5124,7 +5122,8 @@
       ]
     },
     {
-      "_comment": "Bug-4 patches: «по N штук» в 3+ step plan — НЕ должно быть update_stock между add_to_favorites и add_to_cart. Anti-confusion."
+      "_comment": "Bug-4 patches: «по N штук» в 3+ step plan — НЕ должно быть update_stock между add_to_favorites и add_to_cart. Anti-confusion.",
+      "plan": []
     },
     {
       "role": "user",
@@ -5288,7 +5287,8 @@
       ]
     },
     {
-      "_comment": "Bug-5 patches: conversational corrections — last mention wins («X, нет, Y» / «X, точнее Y»)."
+      "_comment": "Bug-5 patches: conversational corrections — last mention wins («X, нет, Y» / «X, точнее Y»).",
+      "plan": []
     },
     {
       "role": "user",
@@ -5333,7 +5333,8 @@
       ]
     },
     {
-      "_comment": "Bug-6 patches: specific product_ids — «товары 1, 2, 3» / «id 7 и 9» → product_ids array (NOT update_stock)."
+      "_comment": "Bug-6 patches: specific product_ids — «товары 1, 2, 3» / «id 7 и 9» → product_ids array (NOT update_stock).",
+      "plan": []
     },
     {
       "role": "user",
@@ -5435,7 +5436,8 @@
       ]
     },
     {
-      "_comment": "Bug-7 patches: Russian colloquial money — «за пятёрку» = «дешевле 5к» (max_price), не «от 5к» (min_price)."
+      "_comment": "Bug-7 patches: Russian colloquial money — «за пятёрку» = «дешевле 5к» (max_price), не «от 5к» (min_price).",
+      "plan": []
     },
     {
       "role": "user",
@@ -5477,7 +5479,8 @@
       ]
     },
     {
-      "_comment": "Bug-3 EXTRA: more surface forms for free (даром/халява/нулёвый/без денег/по нулям)."
+      "_comment": "Bug-3 EXTRA: more surface forms for free (даром/халява/нулёвый/без денег/по нулям).",
+      "plan": []
     },
     {
       "role": "user",
@@ -5518,7 +5521,8 @@
       ]
     },
     {
-      "_comment": "Bug-3 ANCHORS: explicit admin verbs for price changes MUST stay update_prices (anti-forgetting contrast). Schema requires value>0 — using minimal price 100 to maintain admin contrast."
+      "_comment": "Bug-3 ANCHORS: explicit admin verbs for price changes MUST stay update_prices (anti-forgetting contrast). Schema requires value>0 — using minimal price 100 to maintain admin contrast.",
+      "plan": []
     },
     {
       "role": "admin",
@@ -5601,7 +5605,8 @@
       ]
     },
     {
-      "_comment": "Bug-4 EXTRA: 3-step plans filter+favorites_all+cart with diverse colors/materials/searches/quantifiers."
+      "_comment": "Bug-4 EXTRA: 3-step plans filter+favorites_all+cart with diverse colors/materials/searches/quantifiers.",
+      "plan": []
     },
     {
       "role": "user",
@@ -6115,7 +6120,8 @@
       ]
     },
     {
-      "_comment": "Bug-6 EXTRA: more product_ids surface forms covering ALL user tools (cart/favorites, add/remove)."
+      "_comment": "Bug-6 EXTRA: more product_ids surface forms covering ALL user tools (cart/favorites, add/remove).",
+      "plan": []
     },
     {
       "role": "user",
@@ -6417,7 +6423,8 @@
       ]
     },
     {
-      "_comment": "Bug-7 EXTRA: full slang dictionary clean (десятка/двадцатка/тридцатка/полтинник/червонец/сотня) — NOT штука (qty noise)."
+      "_comment": "Bug-7 EXTRA: full slang dictionary clean (десятка/двадцатка/тридцатка/полтинник/червонец/сотня) — NOT штука (qty noise).",
+      "plan": []
     },
     {
       "role": "user",
@@ -6524,7 +6531,8 @@
       ]
     },
     {
-      "_comment": "MULTISTEP-EXTRA: complex 4-5 step plans — clear+filter+fav+cart, double-filter, mixed operations. Critical for robust planning."
+      "_comment": "MULTISTEP-EXTRA: complex 4-5 step plans — clear+filter+fav+cart, double-filter, mixed operations. Critical for robust planning.",
+      "plan": []
     },
     {
       "role": "user",
@@ -7836,13 +7844,13 @@
     },
     {
       "role": "admin",
-      "user": "посмотри что есть из венге",
+      "user": "посмотри что есть из коричневый",
       "plan": [
         {
           "tool": "apply_filters",
           "args": {
             "color": [
-              "Венге"
+              "Коричневый"
             ]
           }
         }
@@ -15123,7 +15131,7 @@
             "search": "готика",
             "color": [
               "Чёрный",
-              "Венге"
+              "Коричневый"
             ]
           }
         }
@@ -15264,7 +15272,6 @@
           "args": {
             "search": "арт-деко",
             "color": [
-              "Изумрудный",
               "Зелёный"
             ]
           }
@@ -18521,6 +18528,3195 @@
               33,
               44
             ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "мебель в гостиную",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "товары для гостиной",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что есть в гостиную",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "посоветуй мебель в гостиную",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "обустройство гостиной",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "мебель в спальню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "товары для спальни",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что есть в спальню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "обустройство спальни",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "посоветуй мебель в спальню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "мебель в детскую",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "товары для детской",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "обустройство детской",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что в детскую комнату",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что подобрать в детскую",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "мебель в офис",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "товары для офиса",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что есть в офис",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "обустройство офиса",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "мебель для рабочего кабинета",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "мебель на кухню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "кухня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "товары для кухни",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "кухня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что подобрать на кухню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "кухня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "обустройство кухни",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "кухня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "мебель кухонная",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "кухня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "мебель в прихожую",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "прихожая"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "товары для прихожей",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "прихожая"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что есть в прихожую",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "прихожая"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "обустройство прихожей",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "прихожая"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "мебель в коридор",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "прихожая"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "диваны в гостиную",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "диван в гостиную",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "посоветуй диван в гостиную",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ищу диван для гостиной",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "диваны для гостиной",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "диван в спальню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "диваны для спальни",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ищу диван в спальню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "диван в детскую",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "диваны для детской",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кресло в гостиную",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кресла для гостиной",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "посоветуй кресло в гостиную",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кресло в офис",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кресла для офиса",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ищу кресло в офис",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кресло в спальню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кресла для спальни",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кресло в детскую",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кресла для детской комнаты",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стол на кухню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "room": "кухня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "столы для кухни",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "room": "кухня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "посоветуй стол на кухню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "room": "кухня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стол в гостиную",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "столы для гостиной",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стол в офис",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "столы для офиса",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ищу стол в офис",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стол в детскую",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "столы для детской",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стулья на кухню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "room": "кухня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стул на кухню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "room": "кухня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "посоветуй стулья на кухню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "room": "кухня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стулья в офис",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ищу стулья в офис",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стулья в детскую",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стул в детскую",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кровать в спальню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кровати для спальни",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "посоветуй кровать в спальню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ищу кровать в спальню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кровать в детскую",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кровати для детской",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "детская кровать в комнату ребёнка",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "шкаф в спальню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "шкафы для спальни",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "посоветуй шкаф в спальню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "шкаф в прихожую",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "room": "прихожая"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "шкафы для прихожей",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "room": "прихожая"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ищу шкаф в прихожую",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "room": "прихожая"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "шкаф в детскую",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "шкафы для детской",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "модульный диван",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "subcategory": "Модульный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "модульные диваны",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "subcategory": "Модульный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "прямой диван",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "subcategory": "Прямой"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "прямые диваны",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "subcategory": "Прямой"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди прямой диван",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "subcategory": "Прямой"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "угловой диван",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "subcategory": "Угловой"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "угловые диваны",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "subcategory": "Угловой"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ищу угловой диван",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "subcategory": "Угловой"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "классическое кресло",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "subcategory": "Классическое"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "классические кресла",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "subcategory": "Классическое"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кресло-кровать",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "subcategory": "Кресло-кровать"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ищу кресло-кровать",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "subcategory": "Кресло-кровать"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что есть из кресел-кроватей",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "subcategory": "Кресло-кровать"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "поворотное кресло",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "subcategory": "Поворотное"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "поворотные кресла",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "subcategory": "Поворотное"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "двуспальная кровать",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Двуспальная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "двуспальные кровати",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Двуспальная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "найди двуспальную кровать",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Двуспальная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "модульная кровать",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Модульная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "журнальный стол",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Журнальный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "журнальные столики",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Журнальный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ищу журнальный столик",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Журнальный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кухонный стол",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Кухонный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кухонные столы",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Кухонный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "обеденный стол",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Обеденный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "обеденные столы",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Обеденный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ищу обеденный стол",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Обеденный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "письменный стол",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Письменный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "письменные столы",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Письменный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ищу письменный стол",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Письменный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "обеденные стулья",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "subcategory": "Обеденный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "обеденный стул",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "subcategory": "Обеденный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стулья обеденные",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "subcategory": "Обеденный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "навесной шкаф",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "subcategory": "Навесной"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "распашной шкаф",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "subcategory": "Распашной"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "распашные шкафы",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "subcategory": "Распашной"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "синий журнальный стол",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Журнальный",
+            "color": [
+              "Синий"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "синие журнальные столики",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Журнальный",
+            "color": [
+              "Синий"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "чёрный журнальный стол",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Журнальный",
+            "color": [
+              "Чёрный"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "белый журнальный стол",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Журнальный",
+            "color": [
+              "Белый"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "белый журнальный столик",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Журнальный",
+            "color": [
+              "Белый"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "бежевый обеденный стол",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Обеденный",
+            "color": [
+              "Бежевый"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "коричневый обеденный стол",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Обеденный",
+            "color": [
+              "Коричневый"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "обеденный стол в коричневом",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Обеденный",
+            "color": [
+              "Коричневый"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "белый письменный стол",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Письменный",
+            "color": [
+              "Белый"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "письменный стол белого цвета",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Письменный",
+            "color": [
+              "Белый"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "серый письменный стол",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Письменный",
+            "color": [
+              "Серый"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "серые обеденные стулья",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "subcategory": "Обеденный",
+            "color": [
+              "Серый"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "чёрные обеденные стулья",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "subcategory": "Обеденный",
+            "color": [
+              "Чёрный"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "чёрные офисные стулья",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "subcategory": "Офисный",
+            "color": [
+              "Чёрный"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "офисный стул чёрный",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "subcategory": "Офисный",
+            "color": [
+              "Чёрный"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "серое поворотное кресло",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "subcategory": "Поворотное",
+            "color": [
+              "Серый"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "зелёное классическое кресло",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "subcategory": "Классическое",
+            "color": [
+              "Зелёный"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "синий прямой диван",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "subcategory": "Прямой",
+            "color": [
+              "Синий"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "серый угловой диван",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "subcategory": "Угловой",
+            "color": [
+              "Серый"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "серые угловые диваны",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "subcategory": "Угловой",
+            "color": [
+              "Серый"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "бежевый угловой диван",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "subcategory": "Угловой",
+            "color": [
+              "Бежевый"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "белая двуспальная кровать",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Двуспальная",
+            "color": [
+              "Белый"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "бежевая двуспальная кровать",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Двуспальная",
+            "color": [
+              "Бежевый"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "белый распашной шкаф",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "subcategory": "Распашной",
+            "color": [
+              "Белый"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "коричневый распашной шкаф",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "subcategory": "Распашной",
+            "color": [
+              "Коричневый"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "журнальный стол в гостиную",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Журнальный",
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "журнальный столик в гостиную",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Журнальный",
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "обеденный стол на кухню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Обеденный",
+            "room": "кухня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "обеденные столы для кухни",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Обеденный",
+            "room": "кухня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "обеденный стол в гостиную",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Обеденный",
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "письменный стол в офис",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Письменный",
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "письменный стол для кабинета",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Письменный",
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "письменный стол в детскую",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Письменный",
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "письменный стол для школьника",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Письменный",
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "обеденные стулья на кухню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "subcategory": "Обеденный",
+            "room": "кухня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "обеденный стул для кухни",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "subcategory": "Обеденный",
+            "room": "кухня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "офисные стулья в офис",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "subcategory": "Офисный",
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "прямой диван в гостиную",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "subcategory": "Прямой",
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "угловой диван в гостиную",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "subcategory": "Угловой",
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "угловые диваны для гостиной",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "subcategory": "Угловой",
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "поворотное кресло в офис",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "subcategory": "Поворотное",
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "двуспальная кровать в спальню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Двуспальная",
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "двуспальные кровати для спальни",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Двуспальная",
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "распашной шкаф в спальню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "subcategory": "Распашной",
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "распашной шкаф в прихожую",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "subcategory": "Распашной",
+            "room": "прихожая"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "навесной шкаф на кухню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "subcategory": "Навесной",
+            "room": "кухня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "детская мебель",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "мебель для детской",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что есть в детскую из мебели",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "детская комната мебель",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "room": "детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "детские кровати",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "детский шкаф",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "subcategory": "Детский"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "детские шкафы",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "subcategory": "Детский"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "офисные стулья",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "subcategory": "Офисный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кровать детская",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кровати для детей",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "детская мебель для сна",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кровать для ребёнка",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кровать в детскую комнату",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "мне нужна детская кровать",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Детская"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кресло в классическом стиле",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "subcategory": "Классическое"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кресло классической формы",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "subcategory": "Классическое"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "классическое кресло для дома",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "subcategory": "Классическое"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "хочу классическое кресло",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "subcategory": "Классическое"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "модульные кровати",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Модульная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кровать модульной конструкции",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Модульная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кровать-трансформер модульная",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Модульная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "модульная система для сна",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Модульная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "ищу модульную кровать",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кровати",
+            "subcategory": "Модульная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кухонный столик",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Кухонный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стол кухонной формы",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Кухонный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стол на кухню малогабаритный",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "subcategory": "Кухонный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "навесные шкафы",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "subcategory": "Навесной"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "навесной шкафчик",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "subcategory": "Навесной"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "шкаф для навешивания на стену",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "subcategory": "Навесной"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "трансформер кресло-кровать",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "subcategory": "Кресло-кровать"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "раскладное кресло-кровать",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "subcategory": "Кресло-кровать"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "складное кресло-кровать",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "subcategory": "Кресло-кровать"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "только в наличии",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "in_stock": true
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что сейчас доступно",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "in_stock": true
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "товары в наличии",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "in_stock": true
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "покажи что есть на складе",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "in_stock": true
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что можно купить сейчас",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "in_stock": true
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "только то что в наличии",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "in_stock": true
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "доступная мебель только",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "in_stock": true
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "не показывай отсутствующие",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "in_stock": true
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "среднего ценового сегмента",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "price_level": "mid"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "не дешевый и не дорогой",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "price_level": "mid"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-то среднее по цене",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "price_level": "mid"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "столы среднего класса",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "price_level": "mid"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "диваны не премиум и не бюджет",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "price_level": "mid"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кресла среднего сегмента",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "price_level": "mid"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "пластиковый стул",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "material": [
+              "пластик"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стул из пластика",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "material": [
+              "пластик"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "пластиковые стулья",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "material": [
+              "пластик"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "что-то пластиковое",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "material": [
+              "пластик"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "пластиковая мебель",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "material": [
+              "пластик"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стулья пластиковые на кухню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "room": "кухня",
+            "material": [
+              "пластик"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "пополни остаток журнальных столов на 30",
+      "plan": [
+        {
+          "tool": "update_stock",
+          "args": {
+            "filter": {
+              "category": "Столы",
+              "subcategory": "Журнальный"
+            },
+            "operation": "add",
+            "quantity": 30
+          }
+        }
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "сделай 15% скидку на угловые диваны",
+      "plan": [
+        {
+          "tool": "update_prices",
+          "args": {
+            "filter": {
+              "category": "Диваны",
+              "subcategory": "Угловой"
+            },
+            "operation": "discount",
+            "value": 15
+          }
+        }
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "выручка по двуспальным кроватям за месяц",
+      "plan": [
+        {
+          "tool": "get_sales_analytics",
+          "args": {
+            "period": "month",
+            "group_by": "product",
+            "metric": "revenue",
+            "filter": {
+              "category": "Кровати",
+              "subcategory": "Двуспальная"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "топ-5 письменных столов по продажам за квартал",
+      "plan": [
+        {
+          "tool": "get_sales_analytics",
+          "args": {
+            "period": "quarter",
+            "group_by": "product",
+            "metric": "units_sold",
+            "sort": "desc",
+            "limit": 5,
+            "filter": {
+              "category": "Столы",
+              "subcategory": "Письменный"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "обнови остаток мебели для спальни на 50",
+      "plan": [
+        {
+          "tool": "update_stock",
+          "args": {
+            "filter": {
+              "room": "спальня"
+            },
+            "operation": "set",
+            "quantity": 50
+          }
+        }
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "скидка 20% на товары для детской",
+      "plan": [
+        {
+          "tool": "update_prices",
+          "args": {
+            "filter": {
+              "room": "детская"
+            },
+            "operation": "discount",
+            "value": 20
+          }
+        }
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "продажи мебели на кухню за неделю",
+      "plan": [
+        {
+          "tool": "get_sales_analytics",
+          "args": {
+            "period": "week",
+            "group_by": "product",
+            "metric": "units_sold",
+            "filter": {
+              "room": "кухня"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "admin",
+      "user": "пополни остаток мебели в офис на 100",
+      "plan": [
+        {
+          "tool": "update_stock",
+          "args": {
+            "filter": {
+              "room": "офис"
+            },
+            "operation": "add",
+            "quantity": 100
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "диван модульной конструкции",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "subcategory": "Модульный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "разборный модульный диван",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "subcategory": "Модульный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "диванчик модульного типа",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Диваны",
+            "subcategory": "Модульный"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "детский шкафчик",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "subcategory": "Детский"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "шкаф детского типа",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "subcategory": "Детский"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "шкаф для детских вещей",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "subcategory": "Детский"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "шкаф в гостиную",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "шкафы для гостиной",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "room": "гостиная"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "шкаф в офис",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "шкафы для офиса",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Шкафы",
+            "room": "офис"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "кресло на кухню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Кресла",
+            "room": "кухня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стол в спальню",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "столы для спальни",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Столы",
+            "room": "спальня"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "user": "стулья в гостиную",
+      "plan": [
+        {
+          "tool": "apply_filters",
+          "args": {
+            "category": "Стулья",
+            "room": "гостиная"
           }
         }
       ]

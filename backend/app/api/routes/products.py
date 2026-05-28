@@ -62,6 +62,7 @@ def _serialize_product(
         description=product.description,
         category=product.category,
         subcategory=product.subcategory,
+        room=product.room,
         materials=product.materials,
         dimensions=product.dimensions,
         rating=float(product.rating),
@@ -91,6 +92,7 @@ async def get_products(
     per_page: int = Query(12, ge=1, le=100),
     category: str | None = None,
     subcategory: str | None = None,
+    room: str | None = None,
     min_price: float | None = None,
     max_price: float | None = None,
     color: list[str] | None = Query(None),
@@ -102,11 +104,19 @@ async def get_products(
     sort_by: str = Query("created_at", pattern="^(created_at|price|rating|name)$"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$")
 ):
+    from sqlalchemy import text as sa_text
+
     base = select(Product)
     if category:
         base = base.where(Product.category == category)
     if subcategory:
-        base = base.where(Product.subcategory == subcategory)
+        # case-insensitive: LLM может прислать «журнальный», в БД хранится «Журнальный»
+        base = base.where(func.lower(Product.subcategory) == subcategory.lower())
+    if room:
+        # PostgreSQL ARRAY membership — товар матчится если room ∈ products.room
+        base = base.where(
+            sa_text(":room_val = ANY(products.room)").bindparams(room_val=room)
+        )
 
     # Variant-level filters: price/color/in_stock are EXISTS subqueries on
     # product_variants. A product passes if at least one of its variants matches.
@@ -220,6 +230,18 @@ async def get_filter_options(
             "max": float(price_row[1] or 0),
         },
     }
+
+
+@router.get("/rooms", response_model=list[str])
+async def get_rooms(db: Annotated[AsyncSession, Depends(get_db)]):
+    """Distinct room values across all products. Unwraps the VARCHAR(50)[] column
+    via UNNEST so the API returns a flat list of room names."""
+    from sqlalchemy import text as sa_text
+    result = await db.execute(sa_text(
+        "SELECT DISTINCT UNNEST(room) AS r FROM products "
+        "WHERE room IS NOT NULL ORDER BY r"
+    ))
+    return [row[0] for row in result.all() if row[0]]
 
 
 @router.get("/categories", response_model=list[CategoryResponse])

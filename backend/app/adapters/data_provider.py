@@ -6,7 +6,7 @@ variant fields for price/color/stock since those moved off Product.
 import logging
 from typing import Any
 
-from sqlalchemy import or_, select, exists
+from sqlalchemy import or_, select, exists, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -65,6 +65,8 @@ class PostgresDataProvider:
         self,
         query: str | None = None,
         category: str | None = None,
+        subcategory: str | None = None,
+        room: str | None = None,
         min_price: float | None = None,
         max_price: float | None = None,
         in_stock: bool = True,
@@ -77,6 +79,12 @@ class PostgresDataProvider:
         base = select(Product).options(selectinload(Product.variants))
         if category:
             base = base.where(Product.category.ilike(f"%{category}%"))
+        if subcategory:
+            # case-insensitive: LLM может прислать «журнальный», в БД «Журнальный»
+            base = base.where(text("lower(products.subcategory) = :sc_val").bindparams(sc_val=subcategory.lower()))
+        if room:
+            # PostgreSQL ARRAY membership: ANY(products.room) = :room (lowercase в БД)
+            base = base.where(text("lower(:room_val) = ANY(products.room)").bindparams(room_val=room))
 
         variant_filters: list = []
         if min_price is not None:

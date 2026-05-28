@@ -14,27 +14,37 @@ from app.schemas.admin import AdminFilter
 log = logging.getLogger(__name__)
 
 
-_BM25_FIELDS = ("name", "description", "category", "subcategory", "materials")
+# Веса BM25 — насколько важен матч в каждом поле.
+# name важнее всего: товар, у которого «дуб» в названии, релевантнее, чем
+# тот, где «дуб» вскользь упомянут в описании. subcategory структурно
+# подсказывает тип товара. materials — тоже сильный сигнал. description
+# наименьший вес, ловит контекстные совпадения.
+_BM25_FIELD_WEIGHTS: tuple[tuple[str, int], ...] = (
+    ("name",        5),
+    ("subcategory", 3),
+    ("materials",   2),
+    ("category",    2),
+    ("description", 1),
+)
 
 
 def apply_search_filter(query: Select, search: str | None) -> Select:
-    """Apply BM25 full-text search to a Product `select()` query.
+    """Apply weighted BM25 full-text search to a Product `select()` query.
 
     Uses the `pg_search` (ParadeDB) extension. The index is built with
     a Snowball Russian stemmer (see `apply_inline_migrations`), which
     means «офисный»/«офисное», «детская»/«детский», «кожаный»/«кожаное»
-    all collapse to the same stem in both the index and the query. So
-    a plain `field @@@ 'token'` just works for any inflected form.
+    all collapse to the same stem in both the index and the query.
 
-    Tantivy parses `column @@@ 'text'` as a query against `column`, so
-    to search «across all indexed text fields» we OR the operator over
-    each one — pg_search's BM25 scoring sums the per-field contributions
-    automatically. Results are ordered by `paradedb.score(id) DESC`.
+    Tantivy query parser supports `field:term^weight` for per-field boost.
+    We build one boosted multi-field query and let Tantivy compute a single
+    weighted score — товар с матчем в name весит ×5 относительно того же
+    матча в description, что убирает «случайные» всплытия из описания.
 
-    On empty/blank search returns the query unchanged. No threshold, no
-    «show-everything» fallback — BM25 returns matches in order of
-    relevance, and zero matches means the answer really is «nothing
-    matches that query».
+    Sort is `paradedb.score(id) DESC` — это сумма per-field scores с уже
+    применёнными boost'ами.
+
+    On empty/blank search returns the query unchanged.
     """
     if not search or not search.strip():
         return query
@@ -45,12 +55,18 @@ def apply_search_filter(query: Select, search: str | None) -> Select:
     text_value = re.sub(r"[^\w\s]", " ", search).strip()
     if not text_value:
         return query
-    or_clauses = " OR ".join(
-        f"products.{f} @@@ :search_q" for f in _BM25_FIELDS
+    # Multi-field boosted query for Tantivy query parser:
+    #   name:(журнальный стол)^5 OR subcategory:(журнальный стол)^3 OR ...
+    # Скобки группируют все токены поискового запроса для одного поля,
+    # ^N задаёт boost. Используем table-level @@@ операнд (products.id @@@ q),
+    # потому что boost-синтаксис работает только в query parser режиме, не в
+    # column @@@ literal режиме.
+    boosted_q = " OR ".join(
+        f"{field}:({text_value})^{weight}" for field, weight in _BM25_FIELD_WEIGHTS
     )
     return (
         query
-        .where(text(f"({or_clauses})").bindparams(search_q=text_value))
+        .where(text("products.id @@@ :search_q").bindparams(search_q=boosted_q))
         .order_by(text("paradedb.score(products.id) DESC"))
     )
 

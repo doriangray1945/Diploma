@@ -14,6 +14,7 @@ export const productsApi = {
     if (filters) {
       if (filters.category) params.append('category', filters.category);
       if (filters.subcategory) params.append('subcategory', filters.subcategory);
+      if (filters.room) params.append('room', filters.room);
       if (filters.min_price !== undefined) params.append('min_price', filters.min_price.toString());
       if (filters.max_price !== undefined) params.append('max_price', filters.max_price.toString());
       // Multi-value: append one query-param per element. FastAPI parses
@@ -48,6 +49,11 @@ export const productsApi = {
 
   getFilterOptions: async (): Promise<FilterOptions> => {
     const response = await api.get<FilterOptions>('/products/filter-options');
+    return response.data;
+  },
+
+  getRooms: async (): Promise<string[]> => {
+    const response = await api.get<string[]>('/products/rooms');
     return response.data;
   },
 };

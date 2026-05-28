@@ -1,31 +1,15 @@
-import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, LogOut, X, Menu } from 'lucide-react';
-import { useAuthStore, useCartStore, useProductsStore } from '../../stores';
+import { ShoppingCart, User, LogOut, Menu } from 'lucide-react';
+import { useAuthStore, useCartStore } from '../../stores';
 
 interface HeaderProps {
   onMenuClick: () => void;
 }
 
 export default function Header({ onMenuClick }: HeaderProps) {
-  const [searchQuery, setSearchQuery] = useState('');
   const { user, logout } = useAuthStore();
   const { items: cartItems } = useCartStore();
-  const { filters, setFilters } = useProductsStore();
   const navigate = useNavigate();
-
-  // Sync search input when filters change externally (e.g. from chat)
-  useEffect(() => {
-    setSearchQuery(filters.search || '');
-  }, [filters.search]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      setFilters({ search: searchQuery.trim() });
-      navigate('/');
-    }
-  };
 
   const handleLogout = () => {
     logout();
@@ -33,85 +17,58 @@ export default function Header({ onMenuClick }: HeaderProps) {
   };
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center px-4 sm:px-6 gap-3">
-      {/* Hamburger (mobile only) */}
-      <button
-        onClick={onMenuClick}
-        className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
-        aria-label="Открыть меню"
-      >
-        <Menu className="w-5 h-5" />
-      </button>
+    <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6">
+      <div className="max-w-6xl mx-auto h-full flex items-center gap-3">
+        {/* Hamburger (mobile only) */}
+        <button
+          onClick={onMenuClick}
+          className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+          aria-label="Открыть меню"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
 
-      {/* Search */}
-      <form onSubmit={handleSearch} className="flex-1 max-w-xl">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Найти что-нибудь"
-            className="w-full pl-10 pr-10 py-2.5 bg-slate-100 border-0 rounded-full text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery('');
-                const newFilters = { ...filters };
-                delete newFilters.search;
-                setFilters(newFilters);
-                navigate('/');
-              }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+        {/* Actions */}
+        <div className="flex items-center gap-3 ml-auto">
+          {user ? (
+            <>
+              {/* Cart */}
+              <Link
+                to="/cart"
+                className="relative p-2.5 text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+              >
+                <ShoppingCart className="w-5 h-5" />
+                {cartItems.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-primary-600 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
+                    {cartItems.length}
+                  </span>
+                )}
+              </Link>
+
+              {/* User menu */}
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 bg-red-500 rounded-full flex items-center justify-center text-white font-medium">
+                  {user.name.charAt(0).toUpperCase()}
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+                  title="Выйти"
+                >
+                  <LogOut className="w-5 h-5" />
+                </button>
+              </div>
+            </>
+          ) : (
+            <Link
+              to="/login"
+              className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-full text-sm font-medium hover:bg-primary-700 transition-colors"
             >
-              <X className="w-4 h-4" />
-            </button>
+              <User className="w-4 h-4" />
+              Войти
+            </Link>
           )}
         </div>
-      </form>
-
-      {/* Actions */}
-      <div className="flex items-center gap-3">
-        {user ? (
-          <>
-            {/* Cart */}
-            <Link
-              to="/cart"
-              className="relative p-2.5 text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
-            >
-              <ShoppingCart className="w-5 h-5" />
-              {cartItems.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-primary-600 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
-                  {cartItems.length}
-                </span>
-              )}
-            </Link>
-
-            {/* User menu */}
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 bg-red-500 rounded-full flex items-center justify-center text-white font-medium">
-                {user.name.charAt(0).toUpperCase()}
-              </div>
-              <button
-                onClick={handleLogout}
-                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
-                title="Выйти"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
-            </div>
-          </>
-        ) : (
-          <Link
-            to="/login"
-            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-full text-sm font-medium hover:bg-primary-700 transition-colors"
-          >
-            <User className="w-4 h-4" />
-            Войти
-          </Link>
-        )}
       </div>
     </header>
   );

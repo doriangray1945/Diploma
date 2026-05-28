@@ -1,7 +1,7 @@
 from datetime import datetime
 from sqlalchemy import String, Text, Integer, Numeric, Boolean, DateTime, JSON, ForeignKey
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from pgvector.sqlalchemy import Vector
 
 from app.core.database import Base
 
@@ -15,6 +15,10 @@ class Product(Base):
 
     category: Mapped[str] = mapped_column(String(100), index=True)
     subcategory: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Помещения, для которых подходит товар (multi-value, т.к. диван годится
+    # и в гостиную, и в детскую). Управляется через backfill/админку,
+    # фильтруется через `:val = ANY(products.room)`.
+    room: Mapped[list[str] | None] = mapped_column(ARRAY(String(50)), nullable=True)
 
     materials: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Default cm dimensions for the model — variants may override per size.
@@ -25,8 +29,6 @@ class Product(Base):
 
     is_popular: Mapped[bool] = mapped_column(Boolean, default=False)
     is_new: Mapped[bool] = mapped_column(Boolean, default=False)
-
-    embedding = mapped_column(Vector(1024), nullable=True)
 
     # Which variant to show by default in catalog listings + initial state of
     # product page. Nullable so the FK can be created before variants exist;

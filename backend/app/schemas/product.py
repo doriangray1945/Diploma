@@ -27,6 +27,7 @@ class ProductBase(BaseModel):
     description: str
     category: str
     subcategory: str | None = None
+    room: list[str] | None = None
     materials: str | None = None
     dimensions: dict | None = None
 

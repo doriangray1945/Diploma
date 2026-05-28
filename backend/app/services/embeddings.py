@@ -1,7 +1,6 @@
 """Embedding service — wraps Ollama's bge-m3 endpoint.
 
-Used by PlanCacheService to embed user queries for semantic plan lookup,
-and by admin/products to embed product fields for catalog search.
+Used by PlanCacheService to embed user queries for semantic plan lookup.
 
 Failures return None; callers must treat that as «can't compute» and fall
 back gracefully (typically: skip cache, run full pipeline).
@@ -21,10 +20,8 @@ log = logging.getLogger(__name__)
 # BGE-M3 — multilingual embedding model. Picked over nomic-embed-text after
 # the latter produced near-identical vectors for distinct Russian
 # adjectives (single-token tokenizer collisions for non-English). BGE-M3
-# is dim=1024 — Product.embedding and PlanCacheEntry.query_embedding
-# columns are sized accordingly.
+# is dim=1024 — PlanCacheEntry.query_embedding column is sized accordingly.
 _MODEL = "bge-m3"
-_EMBED_DIM = 1024
 _TIMEOUT = 60.0
 
 

@@ -34,7 +34,7 @@ class PlanCacheEntry(Base):
 
     query_text: Mapped[str] = mapped_column(Text)
 
-    # 1024 = bge-m3 dim (matches Product.embedding)
+    # 1024 = bge-m3 dim
     query_embedding = mapped_column(Vector(1024), nullable=False)
 
     plan_json: Mapped[dict] = mapped_column(JSON)

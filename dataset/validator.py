@@ -28,7 +28,8 @@ from typing import Any
 from tool_schemas import (
     ADMIN_TOOL_NAMES, ALL_TOOL_NAMES, CATEGORIES, COLORS, GROUP_BY_FIELDS,
     MATERIALS, METRICS, OPERATIONS_PRICE, OPERATIONS_STOCK, PERIODS,
-    PRICE_LEVELS, QUANTIFIERS, SORT_DIRS, USER_TOOL_NAMES, _ADMIN_FILTER_KEYS,
+    PRICE_LEVELS, QUANTIFIERS, ROOMS, SORT_DIRS, SUBCATEGORIES,
+    SUBCATEGORIES_FLAT, USER_TOOL_NAMES, _ADMIN_FILTER_KEYS,
 )
 
 ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -95,14 +96,27 @@ def _validate_args(tool: str, args: dict[str, Any], idx: int) -> list[str]:
 
 def _validate_apply_filters(args: dict[str, Any], idx: int) -> list[str]:
     errors: list[str] = []
-    allowed = {"category", "material", "color", "price_level",
-               "min_price", "max_price", "search", "in_stock"}
+    allowed = {"category", "subcategory", "room", "material", "color",
+               "price_level", "min_price", "max_price", "search", "in_stock"}
     for key in args:
         if key not in allowed:
             errors.append(f"plan[{idx}].args.{key} not in apply_filters schema")
 
     if "category" in args and args["category"] not in CATEGORIES:
         errors.append(f"plan[{idx}].category invalid: {args['category']!r}")
+    if "subcategory" in args:
+        sv = args["subcategory"]
+        if sv not in SUBCATEGORIES_FLAT:
+            errors.append(f"plan[{idx}].subcategory invalid: {sv!r}")
+        # If category specified, subcategory must belong to it.
+        cat = args.get("category")
+        if cat in SUBCATEGORIES and sv not in SUBCATEGORIES[cat]:
+            errors.append(
+                f"plan[{idx}].subcategory {sv!r} does not belong to category {cat!r} "
+                f"(allowed: {SUBCATEGORIES[cat]})"
+            )
+    if "room" in args and args["room"] not in ROOMS:
+        errors.append(f"plan[{idx}].room invalid: {args['room']!r}")
     if "material" in args:
         v = args["material"]
         if not isinstance(v, list) or not v:
@@ -221,6 +235,18 @@ def _validate_admin_filter(flt: Any, idx: int, key_path: str = "filter") -> list
             errors.append(f"plan[{idx}].{key_path}.{k} unknown key")
     if "category" in flt and flt["category"] not in CATEGORIES:
         errors.append(f"plan[{idx}].{key_path}.category invalid: {flt['category']!r}")
+    if "subcategory" in flt:
+        sv = flt["subcategory"]
+        if sv not in SUBCATEGORIES_FLAT:
+            errors.append(f"plan[{idx}].{key_path}.subcategory invalid: {sv!r}")
+        cat = flt.get("category")
+        if cat in SUBCATEGORIES and sv not in SUBCATEGORIES[cat]:
+            errors.append(
+                f"plan[{idx}].{key_path}.subcategory {sv!r} does not belong to "
+                f"category {cat!r}"
+            )
+    if "room" in flt and flt["room"] not in ROOMS:
+        errors.append(f"plan[{idx}].{key_path}.room invalid: {flt['room']!r}")
     if "material" in flt:
         v = flt["material"]
         if not isinstance(v, list) or not v:

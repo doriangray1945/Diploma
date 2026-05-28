@@ -10,8 +10,7 @@ engine = create_async_engine(settings.DATABASE_URL, echo=True)
 async def init_pgvector():
     """Enable pgvector + pg_search extensions in PostgreSQL.
 
-    pgvector: used by plan_cache for semantic plan retrieval and (still
-        present, currently dormant) by Product.embedding.
+    pgvector: used by plan_cache for semantic plan retrieval.
     pg_search: BM25 full-text search engine (ParadeDB / Tantivy) used for
         the catalog search UI and the apply_filters chat tool.
     """
@@ -31,6 +30,12 @@ async def apply_inline_migrations():
         await conn.execute(text(
             "ALTER TABLE chat_sessions "
             "ADD COLUMN IF NOT EXISTS last_cache_hit_id INTEGER"
+        ))
+        # Помещения для товара (multi-value ARRAY). Заполняется backfill-скриптом
+        # и админкой; фильтр в каталоге — `:val = ANY(products.room)`.
+        await conn.execute(text(
+            "ALTER TABLE products "
+            "ADD COLUMN IF NOT EXISTS room VARCHAR(50)[]"
         ))
         await conn.execute(text(
             "ALTER TABLE users "
@@ -66,20 +71,18 @@ async def apply_inline_migrations():
             "CREATE INDEX IF NOT EXISTS ix_order_items_variant_id "
             "ON order_items (variant_id)"
         ))
-        # Switch from nomic-embed-text (dim=768) to bge-m3 (dim=1024). Old
-        # vectors are incompatible after model swap. Run the destructive
-        # ALTER ... USING NULL only when the column is still at 768; once
-        # bumped to 1024 the block becomes a no-op so subsequent restarts
-        # don't wipe re-computed embeddings.
+        # Drop unused products.embedding column (was reserved for semantic
+        # search but the catalog uses BM25; only plan_cache uses embeddings).
+        await conn.execute(text(
+            "ALTER TABLE products DROP COLUMN IF EXISTS embedding"
+        ))
+        # Plan cache uses bge-m3 (dim=1024). If the column is at a different
+        # dim (e.g. legacy nomic-embed-text=768), rebuild it; subsequent
+        # restarts hit the no-op branch and preserve cached embeddings.
         await conn.execute(text("""
             DO $do$
             DECLARE current_dim integer;
             BEGIN
-                SELECT atttypmod INTO current_dim FROM pg_attribute
-                WHERE attrelid = 'products'::regclass AND attname = 'embedding';
-                IF current_dim IS NOT NULL AND current_dim <> 1024 THEN
-                    ALTER TABLE products ALTER COLUMN embedding TYPE vector(1024) USING NULL;
-                END IF;
                 SELECT atttypmod INTO current_dim FROM pg_attribute
                 WHERE attrelid = 'plan_cache_entries'::regclass AND attname = 'query_embedding';
                 IF current_dim IS NOT NULL AND current_dim <> 1024 THEN

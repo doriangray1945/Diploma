@@ -84,7 +84,7 @@ export default function Chat() {
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-10">
       {/* Chat header */}
       <button
         onClick={toggleChat}

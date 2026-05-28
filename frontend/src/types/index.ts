@@ -44,6 +44,7 @@ export interface Product {
   stock_quantity: number;
   category: string;
   subcategory?: string;
+  room?: string[] | null;
   dimensions?: DimensionsCm | string;
   materials?: string;
   rating: number;
@@ -64,6 +65,7 @@ export interface Product {
 export interface ProductFilters {
   category?: string;
   subcategory?: string;
+  room?: string;          // single-value: «кухня» | «спальня» | ...
   min_price?: number;
   max_price?: number;
   color?: string[];      // multi-value: «красные или синие»
